@@ -73,6 +73,14 @@ export function getDb(): Database.Database {
       created_at TEXT NOT NULL,
       ip TEXT
     );
+
+    -- Beta-tester emails collected by the Discord bot (see /bot).
+    CREATE TABLE IF NOT EXISTS beta_testers (
+      email TEXT PRIMARY KEY COLLATE NOCASE,
+      discord_id TEXT,
+      discord_username TEXT,
+      created_at TEXT NOT NULL
+    );
   `);
 
   // Opportunistic cleanup (~1% of connections), matching the PHP behaviour.
