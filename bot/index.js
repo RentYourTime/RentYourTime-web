@@ -1,4 +1,9 @@
-import "dotenv/config";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
+// Load bot/.env by absolute path so the bot works even when launched from the
+// project root (e.g. started together with the website).
+dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), ".env") });
 import {
   Client,
   GatewayIntentBits,
@@ -17,8 +22,9 @@ import { addBetaTester, allBetaTesters, countBetaTesters, isValidEmail } from ".
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
-  console.error("Missing DISCORD_TOKEN in .env");
-  process.exit(1);
+  // Not an error — just skip the bot so the website keeps running fine.
+  console.warn("[bot] DISCORD_TOKEN not set — skipping bot startup (configure bot/.env).");
+  process.exit(0);
 }
 
 const SIGNAL = 0x00e676;

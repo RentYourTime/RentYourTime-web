@@ -5,9 +5,13 @@
   "description": "RentYourTime — make the cost of screen time visible. Next.js rewrite.",
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently -n web,bot -c cyan,magenta \"next dev\" \"node bot/index.js\"",
+    "dev:web": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "concurrently -n web,bot -c cyan,magenta \"next start\" \"node bot/index.js\"",
+    "start:web": "next start",
+    "bot": "node bot/index.js",
+    "bot:register": "node bot/register-commands.js",
     "lint": "next lint"
   },
   "dependencies": {
@@ -20,6 +24,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@tailwindcss/postcss": "^4.1.13",
+    "concurrently": "^9.1.2",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.15.0",
     "@types/react": "^19.1.0",
