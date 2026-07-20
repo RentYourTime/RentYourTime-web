@@ -1,0 +1,26 @@
+@layer reset, base, utilities;
+
+@layer reset {
+  *,*::before,*::after{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-behavior:smooth}
+  body,h1,h2,h3,p{margin-block-start:0}
+  img,svg{display:block;max-width:100%}
+  button,input{font:inherit}
+}
+
+@layer base {
+  :root{color-scheme:dark;accent-color:#00e676}
+  body{min-width:320px}
+  :focus-visible{outline:3px solid #00e676;outline-offset:3px}
+  ::selection{background:#00e676;color:#04140b}
+  [hidden]{display:none!important}
+}
+
+@layer utilities {
+  .skip-link{position:fixed;z-index:999;inset:12px auto auto 12px;padding:10px 14px;border-radius:999px;background:#fff;color:#0b0b0b;text-decoration:none;transform:translateY(-160%)}
+  .skip-link:focus{transform:none}
+  .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+}
+
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+

@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+/* ---- Design tokens exposed to Tailwind utilities (bg-signal, text-rent, …) ---- */
+@theme {
+  --color-ink: #0b0b0b;
+  --color-card: #161616;
+  --color-card2: #1e1e1e;
+  --color-signal: #00e676;
+  --color-rent: #ff3b30;
+  --color-paper: #f4f4f5;
+  --color-sig-ink: #04140b;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue",
+    Helvetica, sans-serif;
+
+  --ease-spring: cubic-bezier(0.32, 1.35, 0.4, 1);
+}
+
+/* ---- Raw variable names used by the ported demo stylesheet (demo.module.css) ---- */
+:root {
+  --ink: #0b0b0b;
+  --card: #161616;
+  --card2: #1e1e1e;
+  --signal: #00e676;
+  --rent: #ff3b30;
+  --paper: #f4f4f5;
+  --sig-ink: #04140b;
+  --spring: cubic-bezier(0.32, 1.35, 0.4, 1);
+  color-scheme: dark;
+  accent-color: #00e676;
+}
+
+@layer base {
+  html {
+    background: #050505;
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  body {
+    margin: 0;
+    min-width: 320px;
+    background: var(--ink);
+    color: #fff;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 3px solid var(--signal);
+    outline-offset: 3px;
+  }
+  ::selection {
+    background: var(--signal);
+    color: var(--sig-ink);
+  }
+}
+
+@layer utilities {
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  .skip-link {
+    position: fixed;
+    z-index: 999;
+    inset: 12px auto auto 12px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: #fff;
+    color: #0b0b0b;
+    text-decoration: none;
+    transform: translateY(-160%);
+  }
+  .skip-link:focus {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

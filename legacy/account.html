@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#050505">
+<meta name="description" content="Create or access your RentYourTime account and manage Pro access.">
+<title>Your account — rentyourtime.</title>
+<link rel="stylesheet" href="assets/base.css">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{--ink:#0b0b0b;--card:#161616;--signal:#00e676;--muted:rgba(255,255,255,.5);--error:#ff8a84}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--ink);color:#fff;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased}.wrap{max-width:1100px;margin:auto}nav{height:87px;padding:0 48px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:space-between}.logo{color:#fff;text-decoration:none;font-size:18px;font-weight:700}.dot,.green{color:var(--signal)}nav>a:last-child{color:var(--muted);text-decoration:none;font-size:14px}.main{padding:70px 24px;display:flex;justify-content:center}.card{width:100%;max-width:440px;background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:28px;padding:32px}.eyebrow{font-size:12px;color:var(--signal);letter-spacing:.1em;font-weight:700}h1{font-size:34px;letter-spacing:-.03em;margin:12px 0 8px}.sub{color:var(--muted);font-size:15px;line-height:1.5;margin:0 0 26px}.tabs{display:grid;grid-template-columns:1fr 1fr;background:#0b0b0b;border-radius:22px;padding:4px;margin-bottom:22px}.tabs button{height:38px;border:0;border-radius:19px;color:var(--muted);background:transparent;font:600 14px inherit;cursor:pointer}.tabs button.on{background:rgba(255,255,255,.1);color:#fff}form{display:flex;flex-direction:column;gap:12px}label{font-size:12px;color:var(--muted);margin:2px 4px -5px}input{height:50px;border:0;border-radius:16px;background:rgba(255,255,255,.07);padding:0 16px;color:#fff;font:15px inherit;outline:none}input:focus{box-shadow:0 0 0 1px var(--signal)}.btn{height:52px;border:0;border-radius:26px;background:var(--signal);color:#04140b;font:700 15px inherit;cursor:pointer;margin-top:8px}.btn:disabled{opacity:.6;cursor:wait}.status{min-height:20px;margin-top:14px;font-size:13px;color:var(--muted);line-height:1.45}.status.error{color:var(--error)}.account{display:none}.account.show{display:block}.account-row{padding:16px 0 24px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:20px}.account-row b,.account-row span{display:block}.account-row span{color:var(--muted);font-size:13px;margin-top:5px}.logout{display:block;margin:18px auto 0;border:0;background:transparent;color:var(--muted);cursor:pointer}.fine{text-align:center;color:rgba(255,255,255,.3);font-size:11px;margin-top:20px}@media(max-width:600px){nav{height:70px;padding:0 24px}.main{padding:36px 18px}.card{padding:26px 22px}}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="wrap">
+  <nav aria-label="Account navigation"><a class="logo" href="index.html">rentyourtime<span class="dot">.</span></a><a href="pricing.html">← Back to pricing</a></nav>
+  <main class="main" id="main">
+    <section class="card">
+      <div id="authPanel">
+        <div class="eyebrow">YOUR ACCOUNT</div>
+        <h1>Unlock Pro<span class="dot">.</span></h1>
+        <p class="sub">Use the same account here and in the app. Your subscription will follow you automatically.</p>
+        <div class="tabs"><button type="button" class="on" data-mode="register">Create account</button><button type="button" data-mode="login">Sign in</button></div>
+        <form id="authForm">
+          <label for="email">Email</label><input id="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@email.com">
+          <label for="password">Password</label><input id="password" type="password" autocomplete="new-password" minlength="10" maxlength="200" required placeholder="At least 10 characters">
+          <button class="btn" id="authButton" type="submit">Create account</button>
+        </form>
+      </div>
+      <div class="account" id="accountPanel">
+        <div class="eyebrow">READY FOR PRO</div><h1>Continue to checkout<span class="dot">.</span></h1>
+        <p class="sub">Stripe securely handles the payment. RentYourTime never receives your card details.</p>
+        <div class="account-row"><b id="accountEmail"></b><span id="accountPlan">Current plan: Free</span></div>
+        <button class="btn" id="checkoutButton" type="button">Continue to Stripe · $8.99/year</button>
+        <button class="logout" id="logoutButton" type="button">Sign out</button>
+      </div>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+      <div class="fine">Subscriptions are confirmed by the payment provider before Pro is activated.</div>
+    </section>
+  </main>
+</div>
+<script type="module">
+(function(){
+  "use strict";
+  var mode="register",token=sessionStorage.getItem("ryt-auth-token")||"";
+  var status=document.getElementById("status"),authPanel=document.getElementById("authPanel"),accountPanel=document.getElementById("accountPanel");
+  function message(text,error){status.textContent=text;status.className="status"+(error?" error":"")}
+  function setBusy(button,busy,label){button.disabled=busy;button.textContent=busy?"Please wait…":label}
+  function api(path,options){
+    options=options||{};options.headers=options.headers||{};options.headers.Accept="application/json";
+    if(options.body)options.headers["Content-Type"]="application/json";
+    if(token)options.headers.Authorization="Bearer "+token;
+    return fetch("api/"+path,options).then(function(r){return r.json().catch(function(){throw new Error("Invalid server response")}).then(function(data){if(!r.ok||!data.ok)throw new Error(data.error||"Request failed");return data})});
+  }
+  function showAccount(data){
+    authPanel.style.display="none";accountPanel.classList.add("show");
+    document.getElementById("accountEmail").textContent=data.user.email;
+    var ent=data.entitlements;document.getElementById("accountPlan").textContent="Current plan: "+(ent&&ent.pro?"Pro":"Free");
+    if(ent&&ent.pro){document.getElementById("checkoutButton").style.display="none";message("Pro is active on this account.",false)}
+  }
+  document.querySelectorAll("[data-mode]").forEach(function(button){button.addEventListener("click",function(){
+    mode=button.dataset.mode;document.querySelectorAll("[data-mode]").forEach(function(x){x.classList.toggle("on",x===button)});
+    document.getElementById("authButton").textContent=mode==="register"?"Create account":"Sign in";
+    document.getElementById("password").autocomplete=mode==="register"?"new-password":"current-password";message("",false);
+  })});
+  document.getElementById("authForm").addEventListener("submit",function(e){
+    e.preventDefault();var button=document.getElementById("authButton"),label=mode==="register"?"Create account":"Sign in";setBusy(button,true,label);message("",false);
+    api(mode+".php",{method:"POST",body:JSON.stringify({email:document.getElementById("email").value.trim(),password:document.getElementById("password").value})})
+      .then(function(data){token=data.auth.token;sessionStorage.setItem("ryt-auth-token",token);return api("me.php")}).then(showAccount)
+      .catch(function(e){var map={email_taken:"This email already has an account.",invalid_credentials:"Incorrect email or password.",invalid_password:"Use at least 10 characters.",invalid_email:"Enter a valid email address."};message(map[e.message]||"Something went wrong. Please try again.",true)})
+      .finally(function(){setBusy(button,false,label)});
+  });
+  document.getElementById("checkoutButton").addEventListener("click",function(){
+    var button=this,label="Continue to Stripe · $8.99/year";setBusy(button,true,label);message("",false);
+    api("checkout.php",{method:"POST",body:"{}"}).then(function(data){location.href=data.checkout_url}).catch(function(){message("Checkout is not configured yet. Check the server settings.",true);setBusy(button,false,label)});
+  });
+  document.getElementById("logoutButton").addEventListener("click",function(){
+    api("logout.php",{method:"POST",body:"{}"}).catch(function(){}).finally(function(){sessionStorage.removeItem("ryt-auth-token");location.reload()});
+  });
+  if(token)api("me.php").then(showAccount).catch(function(){token="";sessionStorage.removeItem("ryt-auth-token")});
+})();
+</script>
+</body>
+</html>

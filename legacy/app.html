@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050505">
+<meta name="description" content="Interactive RentYourTime product demo.">
+<title>App demo — rentyourtime.</title>
+<link rel="stylesheet" href="assets/base.css">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --ink:#0B0B0B; --card:#161616; --card2:#1E1E1E; --signal:#00E676; --rent:#FF3B30;
+  --paper:#F4F4F5; --sig-ink:#04140b;
+  --spring:cubic-bezier(.32,1.35,.4,1);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{background:#050505}
+body{
+  margin:0;background:#050505;color:#fff;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Helvetica,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.stage{min-height:100dvh;display:flex;align-items:center;justify-content:center}
+.phone{
+  position:relative;width:min(430px,100vw);height:min(880px,100dvh);
+  background:var(--ink);overflow:hidden;
+  display:flex;flex-direction:column;
+}
+@media (min-width:500px) and (min-height:920px){
+  .phone{border-radius:48px;border:1px solid rgba(255,255,255,.1);box-shadow:0 40px 120px rgba(0,0,0,.7)}
+}
+/* ---------- status bar ---------- */
+.statusbar{
+  position:absolute;top:0;left:0;right:0;height:44px;z-index:40;
+  display:flex;align-items:center;justify-content:space-between;padding:0 26px;
+  font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;pointer-events:none;
+}
+.statusbar .right{display:flex;align-items:center;gap:6px}
+.statusbar svg{display:block}
+/* ---------- screens ---------- */
+.screen{
+  position:absolute;inset:0;display:none;flex-direction:column;
+  background:var(--ink);
+}
+.screen.active{display:flex}
+.screen.enter{animation:screenIn .48s var(--spring)}
+@keyframes screenIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){
+  .screen.enter{animation:fadeIn .2s ease}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+}
+/* ---------- shared components ---------- */
+.btn{
+  height:56px;border-radius:28px;border:0;font:600 17px/1 inherit;font-family:inherit;
+  display:flex;align-items:center;justify-content:center;width:100%;cursor:pointer;
+  transition:transform .18s var(--spring);color:var(--ink);background:#fff;flex:none;
+}
+.btn:active{transform:scale(.97)}
+.btn.green{background:var(--signal);color:var(--sig-ink)}
+.btn.ghost{background:rgba(255,255,255,.08);color:#fff}
+.btn.quiet{background:none;color:rgba(255,255,255,.45);font-size:15px;font-weight:400;height:auto;padding:10px 0}
+.card{background:var(--card);border-radius:24px;padding:20px}
+.eyebrow{font-size:13px;font-weight:500;letter-spacing:.08em;color:rgba(255,255,255,.4)}
+.tnum{font-variant-numeric:tabular-nums}
+/* toggle */
+.toggle{width:51px;height:31px;border-radius:16px;background:rgba(255,255,255,.14);position:relative;flex:none;cursor:pointer;transition:background .25s ease}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3);transition:transform .25s var(--spring)}
+.toggle.on{background:var(--signal)}
+.toggle.on::after{transform:translateX(20px)}
+/* chips */
+.chips{display:flex;gap:8px}
+.chip{padding:8px 16px;border-radius:18px;background:rgba(255,255,255,.07);font-size:14px;color:rgba(255,255,255,.6);cursor:pointer;border:0;font-family:inherit;transition:background .2s,color .2s}
+.chip.on{background:#fff;color:var(--ink);font-weight:600}
+/* ---------- splash ---------- */
+#s-splash{align-items:center;justify-content:center;gap:28px}
+.splash-ring{width:84px;height:84px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:conic-gradient(var(--signal) 0 68%,rgba(255,255,255,.1) 68% 100%)}
+.splash-ring .hole{width:62px;height:62px;border-radius:50%;background:var(--ink);display:flex;align-items:center;justify-content:center}
+.splash-ring .dot{width:10px;height:10px;border-radius:50%;background:var(--signal);animation:rytPulse 1.6s ease-in-out infinite}
+@keyframes rytPulse{0%,100%{opacity:1}50%{opacity:.35}}
+.wordmark{font-size:24px;font-weight:700;letter-spacing:-.03em}
+.wordmark b,.dotg{color:var(--signal);font-weight:inherit}
+/* ---------- onboarding ---------- */
+.ob{padding:64px 24px 24px;gap:20px}
+.ob h1{margin:0;font-size:32px;font-weight:700;letter-spacing:-.02em;line-height:1.15}
+.ob .lead{font-size:17px;line-height:1.5;color:rgba(255,255,255,.55)}
+.spacer{flex:1}
+#s-welcome{padding:32px 24px 24px;justify-content:flex-end;gap:16px}
+.ghost{flex:1;display:flex;align-items:center;justify-content:center;font-size:110px;font-weight:700;letter-spacing:-.05em;line-height:.9;color:rgba(255,255,255,.06);text-align:center}
+.ghost span{color:rgba(0,230,118,.25)}
+#s-welcome h1{margin:0;font-size:40px;font-weight:700;letter-spacing:-.03em;line-height:1.08}
+.signin{font-size:15px;color:rgba(255,255,255,.45);text-align:center}
+.signin b{color:var(--signal);font-weight:500;cursor:pointer}
+.deal-row{display:flex;justify-content:space-between;align-items:baseline}
+.deal-row .k{font-size:15px;color:rgba(255,255,255,.55)}
+.deal-row .v{font-size:28px;font-weight:700;letter-spacing:-.02em}
+.deal-bar{height:10px;border-radius:5px;background:rgba(255,255,255,.08);overflow:hidden;display:flex}
+.deal-bar i{display:block;height:100%}
+/* system permission dialog */
+.sysdim{position:absolute;inset:0;background:rgba(0,0,0,.45);z-index:60;display:none;align-items:center;justify-content:center}
+.sysdim.show{display:flex}
+.sysdialog{width:280px;background:rgba(30,30,30,.96);border-radius:20px;padding:20px 20px 0;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.6);animation:popIn .3s var(--spring)}
+@keyframes popIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+.sysdialog h3{margin:0 0 6px;font-size:16px;font-weight:600;line-height:1.35}
+.sysdialog p{margin:0 0 16px;font-size:12.5px;color:rgba(255,255,255,.55);line-height:1.4}
+.sysdialog .acts{display:flex;border-top:1px solid rgba(255,255,255,.12);margin:0 -20px}
+.sysdialog .acts button{flex:1;padding:13px 0;font-size:16px;color:#0A84FF;background:none;border:0;font-family:inherit;cursor:pointer}
+.sysdialog .acts button+button{border-left:1px solid rgba(255,255,255,.12);font-weight:600}
+.notif-demo{background:var(--card);border-radius:18px;padding:14px 16px;display:flex;gap:12px;align-items:center}
+.notif-demo .ic{width:34px;height:34px;border-radius:9px;background:var(--ink);border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;flex:none}
+.notif-demo .ic i{width:16px;height:16px;border-radius:50%;background:conic-gradient(var(--signal) 0 68%,rgba(255,255,255,.15) 0)}
+.notif-demo .t{font-size:14px;font-weight:600}
+.notif-demo .s{font-size:13px;color:rgba(255,255,255,.5)}
+/* ---------- app shell ---------- */
+#s-app{padding-top:44px}
+.views{flex:1;position:relative;overflow:hidden}
+.view{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;display:none;flex-direction:column;padding:12px 24px 156px;gap:16px;scrollbar-width:none}
+.view::-webkit-scrollbar{display:none}
+.view.active{display:flex}
+.view.enter{animation:viewIn .35s var(--spring)}
+@keyframes viewIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.vtitle{font-size:28px;font-weight:700;letter-spacing:-.02em}
+/* tab bar */
+.tabbar{
+  position:absolute;left:0;right:0;bottom:0;height:86px;z-index:30;
+  display:flex;padding:8px 10px calc(18px + env(safe-area-inset-bottom,0px));
+  background:rgba(11,11,11,.86);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-top:1px solid rgba(255,255,255,.06);
+}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:0;font-family:inherit;color:rgba(255,255,255,.38);font-size:10px;font-weight:500;cursor:pointer;transition:color .2s}
+.tab svg{width:24px;height:24px}
+.tab.on{color:var(--signal)}
+/* demo bar */
+.demobar{
+  position:absolute;left:50%;bottom:94px;transform:translateX(-50%);z-index:35;
+  display:flex;align-items:center;gap:6px;padding:6px 10px;
+  background:rgba(22,22,22,.92);border:1px solid rgba(255,255,255,.12);border-radius:20px;
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  box-shadow:0 10px 28px rgba(0,0,0,.5);white-space:nowrap;
+}
+.demobar .dlabel{font:700 9.5px ui-monospace,Menlo,monospace;letter-spacing:.1em;color:var(--signal);padding:0 4px}
+.dbtn{border:0;background:rgba(255,255,255,.08);color:rgba(255,255,255,.75);font:600 11.5px inherit;font-family:inherit;padding:6px 10px;border-radius:13px;cursor:pointer;transition:background .2s,color .2s}
+.dbtn.on{background:var(--signal);color:var(--sig-ink)}
+.dbtn:active{transform:scale(.95)}
+/* in-app notification banner */
+.banner{
+  position:absolute;top:52px;left:12px;right:12px;z-index:65;
+  background:rgba(40,40,42,.96);border-radius:20px;padding:14px 16px;
+  display:flex;gap:12px;box-shadow:0 12px 32px rgba(0,0,0,.55);
+  transform:translateY(calc(-100% - 72px));transition:transform .5s var(--spring);pointer-events:none;
+}
+.banner.show{transform:none}
+.banner .ic{width:38px;height:38px;border-radius:10px;background:var(--ink);border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;flex:none}
+.banner .ic i{width:18px;height:18px;border-radius:50%;background:conic-gradient(var(--signal) 0 68%,rgba(255,255,255,.18) 0)}
+.banner .bt{font-size:14px;font-weight:600}
+.banner .bs{font-size:13.5px;color:rgba(255,255,255,.65);line-height:1.35}
+/* ---------- today ---------- */
+.today-head{display:flex;justify-content:space-between;align-items:center}
+.today-date{font-size:13px;color:rgba(255,255,255,.45)}
+.streak-chip{display:flex;align-items:center;gap:6px;background:var(--card);border-radius:16px;padding:8px 14px}
+.streak-chip b{font-size:15px;font-weight:700;color:var(--signal)}
+.streak-chip span{font-size:12px;color:rgba(255,255,255,.5)}
+.ringwrap{display:flex;flex-direction:column;align-items:center;padding:12px 0 4px}
+.ring{width:200px;height:200px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.ring .hole{width:168px;height:168px;border-radius:50%;background:var(--ink);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.ring .big{font-size:44px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.ring .sub{font-size:13px;font-weight:500;color:var(--rent)}
+.ring .sub.free{color:var(--signal)}
+.rentcard{display:flex;justify-content:space-between;align-items:center;padding:18px 20px}
+.rentcard .k{font-size:13px;color:rgba(255,255,255,.5)}
+.rentcard .big{font-size:30px;font-weight:700;letter-spacing:-.02em;color:var(--rent)}
+.rentcard .big.free{color:var(--signal)}
+.rentcard .mo{font-size:20px;font-weight:600}
+.odom{display:inline-block}
+.odom.flip{animation:odo .32s var(--spring)}
+@keyframes odo{0%{transform:translateY(-.55em);opacity:0}100%{transform:none;opacity:1}}
+.tiles{display:flex;gap:12px}
+.tile{flex:1;background:var(--card);border-radius:20px;padding:16px}
+.tile .k{font-size:12px;color:rgba(255,255,255,.5)}
+.tile .v{font-size:22px;font-weight:700;margin-top:2px}
+.tile .v.g{color:var(--signal)}
+.actions{display:flex;gap:12px}
+.actions .btn{height:52px;border-radius:26px;font-size:15px;flex:1}
+.weekcard .whead{display:flex;justify-content:space-between;margin-bottom:14px}
+.weekcard .whead b{font-size:15px;font-weight:600}
+.weekcard .whead span{font-size:13px;color:rgba(255,255,255,.45)}
+.bars{display:flex;align-items:flex-end;gap:8px;height:72px}
+.bars i{flex:1;border-radius:5px;transform-origin:bottom;transform:scaleY(0);transition:transform .5s var(--spring)}
+.bars.grown i{transform:scaleY(1)}
+@media (prefers-reduced-motion:reduce){.bars i{transition:none;transform:scaleY(1)}}
+.daylabels{display:flex;gap:8px;margin-top:8px}
+.daylabels span{flex:1;text-align:center;font-size:11px;color:rgba(255,255,255,.4)}
+.daylabels span.today{color:#fff;font-weight:600}
+.footline{font-size:14px;color:rgba(255,255,255,.5);text-align:center;padding:4px 0 8px}
+/* ---------- rent ---------- */
+.seg{display:flex;background:var(--card);border-radius:20px;padding:4px}
+.seg button{flex:1;height:36px;border-radius:16px;border:0;background:none;color:rgba(255,255,255,.55);font:600 14px inherit;font-family:inherit;cursor:pointer;transition:background .2s,color .2s}
+.seg button.on{background:rgba(255,255,255,.12);color:#fff}
+.receipt{background:var(--paper);color:var(--ink);border-radius:24px;padding:26px 24px;box-shadow:0 20px 50px rgba(0,0,0,.5);transition:transform .5s var(--spring),opacity .4s ease;position:relative;overflow:hidden}
+.receipt.filed{transform:translateY(-24px) scale(.95);opacity:0}
+.receipt .rhead{display:flex;justify-content:space-between;margin-bottom:22px;font-size:13px;font-weight:600;letter-spacing:.08em;color:rgba(0,0,0,.45)}
+.receipt .line{display:flex;justify-content:space-between;font-size:15px;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.08)}
+.receipt .line span:last-child{color:rgba(0,0,0,.55)}
+.receipt .total{display:flex;justify-content:space-between;align-items:baseline;padding:16px 0 4px}
+.receipt .total b{font-size:15px;font-weight:600}
+.receipt .total .sum{font-size:36px;font-weight:700;letter-spacing:-.03em}
+.receipt .fine{font-size:12.5px;color:rgba(0,0,0,.4);margin-top:10px}
+.stamp{
+  position:absolute;top:18px;right:-8px;transform:rotate(12deg) scale(3);opacity:0;
+  font:800 15px ui-monospace,Menlo,monospace;letter-spacing:.14em;padding:6px 14px;
+  border:3px solid;border-radius:8px;pointer-events:none;
+}
+.stamp.show{animation:stampIn .45s var(--spring) forwards}
+@keyframes stampIn{0%{opacity:0;transform:rotate(12deg) scale(3)}60%{opacity:1;transform:rotate(-8deg) scale(.96)}100%{opacity:1;transform:rotate(-8deg) scale(1)}}
+.stamp.paid{color:var(--rent);border-color:var(--rent)}
+.stamp.free{color:#00b85f;border-color:#00b85f}
+.applist{display:flex;flex-direction:column;gap:12px}
+.applist h4{margin:0;font-size:15px;font-weight:600}
+.approw{display:flex;justify-content:space-between;align-items:center}
+.approw .nm{font-size:15px;color:rgba(255,255,255,.7)}
+.approw .rt{display:flex;align-items:center;gap:10px}
+.approw .track{width:90px;height:6px;border-radius:3px;background:rgba(255,255,255,.1)}
+.approw .track i{display:block;height:100%;border-radius:3px;background:var(--rent);transition:width .4s ease}
+.approw .mm{font-size:13px;color:rgba(255,255,255,.5)}
+.mo-cards{display:flex;gap:12px}
+.mo-card{flex:1;background:var(--card);border-radius:20px;padding:16px}
+.mo-card .k{font-size:12px;color:rgba(255,255,255,.5)}
+.mo-card .v{font-size:26px;font-weight:700;margin-top:2px}
+.mo-card .d{font-size:11.5px;margin-top:4px;color:rgba(255,255,255,.4)}
+.mo-card .d.g{color:var(--signal)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal i{aspect-ratio:1;border-radius:7px;display:block}
+.legend{display:flex;gap:14px;margin-top:12px;font-size:11.5px;color:rgba(255,255,255,.45)}
+.legend span{display:flex;align-items:center;gap:5px}
+.legend i{width:9px;height:9px;border-radius:3px;display:block}
+.hist{display:flex;flex-direction:column;gap:13px}
+.hist h4{margin:0 0 1px;font-size:15px;font-weight:600}
+.hist .row{display:flex;justify-content:space-between;font-size:15px}
+.hist .row span:first-child{color:rgba(255,255,255,.7)}
+.hist .row b{font-weight:600;color:var(--rent)}
+.hist .row b.g{color:var(--signal)}
+/* ---------- insights ---------- */
+.icard .k{font-size:13px;color:rgba(255,255,255,.5)}
+.icard .hl{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.icard .hl b{font-size:34px;font-weight:700;letter-spacing:-.02em}
+.icard .hl span{font-size:13px;color:var(--signal);font-weight:600}
+.ibars{display:flex;align-items:flex-end;gap:8px;height:88px;margin-top:16px;position:relative}
+.ibars .free-line{position:absolute;left:0;right:0;border-top:1.5px dashed rgba(255,255,255,.25)}
+.ibars i{flex:1;border-radius:5px;transform-origin:bottom;transform:scaleY(0);transition:transform .5s var(--spring)}
+.ibars.grown i{transform:scaleY(1)}
+@media (prefers-reduced-motion:reduce){.ibars i{transition:none;transform:scaleY(1)}}
+.ibars-note{font-size:11.5px;color:rgba(255,255,255,.4);margin-top:8px;text-align:right}
+.bw{display:flex;gap:12px}
+.bw .tile .v{font-size:18px}
+.bw .tile .v.r{color:var(--rent)}
+.hours{display:grid;grid-template-columns:repeat(12,1fr);gap:4px}
+.hours i{height:22px;border-radius:5px;display:block}
+.hourlabels{display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.4);margin-top:6px}
+.proj{display:flex;justify-content:space-between;align-items:center}
+.proj .v{font-size:24px;font-weight:700;color:var(--rent)}
+.usage{display:flex;flex-direction:column;gap:16px}
+.u-row .u-head{display:flex;justify-content:space-between}
+.u-row .u-head b{font-size:15px;font-weight:500}
+.u-row .u-head span{font-size:14px;color:rgba(255,255,255,.55)}
+.u-row .u-head span em{font-style:normal;color:var(--rent);font-weight:600}
+.u-row .track{height:8px;border-radius:4px;background:rgba(255,255,255,.08);margin-top:7px}
+.u-row .track i{display:block;height:100%;border-radius:4px}
+.exempt{display:flex;justify-content:space-between;align-items:center;padding:18px 20px}
+.exempt .t{font-size:15px;font-weight:600}
+.exempt .s{font-size:13px;color:rgba(255,255,255,.5);margin-top:2px}
+.exempt a{color:var(--signal);font-size:14px;font-weight:500;text-decoration:none;cursor:pointer}
+.insight-call{background:rgba(0,230,118,.07);border-radius:24px;padding:18px 20px}
+.insight-call .t{font-size:15px;font-weight:600;color:var(--signal)}
+.insight-call .s{font-size:14px;line-height:1.5;color:rgba(255,255,255,.65);margin-top:4px}
+/* ---------- awards ---------- */
+.streakcard{display:flex;flex-direction:column;align-items:center;gap:6px;padding:22px}
+.streakcard .n{font-size:56px;font-weight:700;letter-spacing:-.04em;color:var(--signal);line-height:1}
+.streakcard .k{font-size:15px;color:rgba(255,255,255,.6)}
+.pips{display:flex;gap:6px;margin-top:10px}
+.pips i{width:22px;height:5px;border-radius:3px;background:rgba(255,255,255,.12);display:block}
+.pips i.on{background:var(--signal)}
+.streakcard .next{font-size:12.5px;color:rgba(255,255,255,.45)}
+.badges{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.badge{background:var(--card);border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden}
+.badge.locked{opacity:.45}
+.badge .coin{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:conic-gradient(var(--signal) 0 100%)}
+.badge .coin .in{width:34px;height:34px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--signal)}
+.badge.locked .coin{background:rgba(255,255,255,.08)}
+.badge.locked .coin .in{background:none;color:rgba(255,255,255,.4);width:auto;height:auto}
+.badge .t{font-size:14px;font-weight:600}
+.badge .s{font-size:12px;color:rgba(255,255,255,.45)}
+.badge .shimmer{position:absolute;inset:0;background:linear-gradient(105deg,transparent 40%,rgba(0,230,118,.18) 50%,transparent 60%);transform:translateX(-120%);pointer-events:none}
+.badge.unlocking .shimmer{animation:shim .6s ease forwards}
+@keyframes shim{to{transform:translateX(120%)}}
+.challenge{display:flex;justify-content:space-between;align-items:center;padding:18px 20px}
+.challenge .t{font-size:15px;font-weight:600}
+.challenge .s{font-size:13px;color:rgba(255,255,255,.5);margin-top:2px}
+.mini-ring{width:44px;height:44px;border-radius:50%;background:conic-gradient(var(--signal) 0 71%,rgba(255,255,255,.1) 0);display:flex;align-items:center;justify-content:center;flex:none}
+.mini-ring .in{width:33px;height:33px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+/* ---------- settings ---------- */
+.group{background:var(--card);border-radius:24px;padding:6px 20px}
+.srow{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.06);cursor:pointer}
+.group .srow:last-child{border-bottom:0}
+.srow .l{font-size:16px}
+.srow .r{font-size:16px;color:rgba(255,255,255,.5)}
+.srow .r.g{color:var(--signal)}
+.danger{background:rgba(255,59,48,.06);border:1px solid rgba(255,59,48,.2);border-radius:24px;padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+.danger .head{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.danger .t{font-size:16px;font-weight:600}
+.danger .s{font-size:13px;color:rgba(255,255,255,.5);margin-top:2px}
+.danger .fine{font-size:12px;line-height:1.5;color:rgba(255,255,255,.4)}
+.delete{font-size:15px;color:var(--rent);text-align:center;padding:8px 0;cursor:pointer;background:none;border:0;font-family:inherit;width:100%}
+/* ---------- sheets & modals ---------- */
+.sheetdim{position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:70;opacity:0;pointer-events:none;transition:opacity .3s ease}
+.sheetdim.show{opacity:1;pointer-events:auto}
+.sheet{
+  position:absolute;left:0;right:0;bottom:0;z-index:71;background:var(--ink);
+  border-radius:28px 28px 0 0;padding:20px 24px calc(24px + env(safe-area-inset-bottom,0px));
+  transform:translateY(105%);transition:transform .45s var(--spring);
+  max-height:88%;overflow-y:auto;display:flex;flex-direction:column;gap:18px;
+  border-top:1px solid rgba(255,255,255,.08);
+}
+.sheet.show{transform:none}
+.grabber{width:36px;height:5px;border-radius:3px;background:rgba(255,255,255,.18);margin:0 auto}
+.pro-eyebrow{font-size:13px;font-weight:600;letter-spacing:.1em;color:var(--signal)}
+.pro-title{font-size:34px;font-weight:700;letter-spacing:-.02em;line-height:1.12}
+.pro-feats{display:flex;flex-direction:column;gap:12px;margin-top:4px}
+.pro-feats .f{display:flex;gap:12px;align-items:center}
+.pro-feats .f i{width:6px;height:6px;border-radius:50%;background:var(--signal);flex:none}
+.pro-feats .f span{font-size:16px;color:rgba(255,255,255,.8)}
+.plan{background:var(--card);border-radius:22px;padding:18px 20px;display:flex;justify-content:space-between;align-items:center;position:relative;cursor:pointer}
+.plan.featured{border:1.5px solid var(--signal)}
+.plan .flag{position:absolute;top:-11px;left:20px;background:var(--signal);color:var(--sig-ink);font-size:11px;font-weight:700;letter-spacing:.05em;padding:3px 10px;border-radius:9px}
+.plan .t{font-size:16px;font-weight:600}
+.plan .s{font-size:13px;color:rgba(255,255,255,.5)}
+.plan .s s{text-decoration:line-through}
+.plan .p{font-size:22px;font-weight:700}
+.plan .p span{font-size:13px;font-weight:500;color:rgba(255,255,255,.5)}
+.pro-fine{font-size:12px;color:rgba(255,255,255,.35);text-align:center}
+/* bill ceremony */
+.billwrap{
+  position:absolute;inset:0;z-index:72;display:none;flex-direction:column;justify-content:center;
+  padding:24px;gap:16px;
+}
+.billwrap.show{display:flex}
+.billwrap .receipt{animation:billIn .55s var(--spring)}
+@keyframes billIn{from{opacity:0;transform:translateY(60px) scale(.95)}to{opacity:1;transform:none}}
+/* confirm modal */
+.modal{width:300px;background:var(--card2);border-radius:22px;padding:24px 22px 16px;text-align:center;animation:popIn .3s var(--spring)}
+.modal h3{margin:0 0 8px;font-size:17px;font-weight:600}
+.modal p{margin:0 0 18px;font-size:13.5px;line-height:1.5;color:rgba(255,255,255,.55)}
+.modal .acts{display:flex;gap:10px}
+.modal .acts .btn{height:46px;font-size:15px;border-radius:23px}
+/* toast */
+.toast{
+  position:absolute;left:50%;bottom:140px;transform:translate(-50%,16px);z-index:80;
+  background:var(--card2);border:1px solid rgba(255,255,255,.1);color:#fff;
+  padding:12px 20px;border-radius:22px;font-size:14px;font-weight:500;white-space:nowrap;
+  opacity:0;pointer-events:none;transition:opacity .3s ease,transform .3s var(--spring);
+  box-shadow:0 12px 32px rgba(0,0,0,.5);max-width:86%;
+}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#phone">Skip to demo</a>
+<main class="stage" aria-label="Interactive app demo">
+<div class="phone" id="phone">
+
+  <div class="statusbar" aria-hidden="true">
+    <span id="clock" class="tnum">21:47</span>
+    <span class="right">
+      <svg width="17" height="11" viewBox="0 0 17 11" fill="none"><rect x="0" y="7" width="3" height="4" rx="1" fill="#fff"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="#fff"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="#fff"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="#fff" opacity=".35"/></svg>
+      <svg width="24" height="12" viewBox="0 0 24 12" fill="none"><rect x=".5" y=".5" width="20" height="11" rx="3.5" stroke="#fff" opacity=".4"/><rect x="2" y="2" width="13" height="8" rx="2" fill="#fff"/><path d="M22 4v4c1-.3 1.6-1.1 1.6-2S23 4.3 22 4z" fill="#fff" opacity=".4"/></svg>
+    </span>
+  </div>
+
+  <!-- in-app notification banner -->
+  <div class="banner" id="banner" role="status" aria-live="polite">
+    <div class="ic"><i></i></div>
+    <div><div class="bt" id="bannerT"></div><div class="bs" id="bannerS"></div></div>
+  </div>
+
+  <!-- ============ SPLASH ============ -->
+  <section class="screen" id="s-splash">
+    <div class="splash-ring"><div class="hole"><div class="dot"></div></div></div>
+    <div class="wordmark">rentyourtime<b>.</b></div>
+  </section>
+
+  <!-- ============ WELCOME ============ -->
+  <section class="screen" id="s-welcome">
+    <div class="ghost"><div>3h<br><span>free</span></div></div>
+    <h1>Every minute<br>costs<span class="dotg">.</span></h1>
+    <div class="ob lead" style="padding:0">You get 3 free hours of screen time a day. After that, your phone starts charging rent.</div>
+    <button class="btn" style="margin-top:12px" data-go="s-concept">Get Started</button>
+    <div class="signin">Already renting? <b data-go="s-app">Sign in</b></div>
+  </section>
+
+  <!-- ============ CONCEPT ============ -->
+  <section class="screen ob" id="s-concept">
+    <div class="eyebrow">THE DEAL</div>
+    <h1>3 hours free.<br>Then it's rent.</h1>
+    <div class="card" style="display:flex;flex-direction:column;gap:18px;padding:24px;margin-top:8px">
+      <div class="deal-row"><span class="k">Free every day</span><span class="v tnum" style="color:var(--signal)">3:00</span></div>
+      <div class="deal-bar"><i style="width:76%;background:var(--signal)"></i><i style="width:8%;background:var(--rent)"></i></div>
+      <div class="deal-row"><span class="k">Every extra minute</span><span class="v tnum" style="color:var(--rent)">$0.15</span></div>
+    </div>
+    <div class="card" style="padding:20px 24px;font-size:15px;line-height:1.55;color:rgba(255,255,255,.6)">The bill is virtual. No card, no charge — just the honest price of your attention. You can make it real later, if you dare.</div>
+    <div class="spacer"></div>
+    <button class="btn" data-go="s-perm1">I accept the deal</button>
+  </section>
+
+  <!-- ============ PERMISSION 1 — SCREEN TIME ============ -->
+  <section class="screen ob" id="s-perm1">
+    <div class="eyebrow">STEP 1 OF 2</div>
+    <h1>We need to see<br>the meter.</h1>
+    <div class="lead">Screen Time access lets us count your minutes. It stays on your device — we never see which apps you use.</div>
+    <div class="spacer"></div>
+    <button class="btn green" id="btnConnectST">Connect Screen Time</button>
+  </section>
+
+  <!-- ============ PERMISSION 2 — NOTIFICATIONS ============ -->
+  <section class="screen ob" id="s-perm2">
+    <div class="eyebrow">STEP 2 OF 2</div>
+    <h1>We'll knock<br>before the bill.</h1>
+    <div class="lead">One gentle heads-up when free time runs low. Never spam — you can count our notifications on one hand.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+      <div class="notif-demo"><div class="ic"><i></i></div><div><div class="t">45 minutes left today</div><div class="s">Still free. Spend them well.</div></div></div>
+      <div class="notif-demo"><div class="ic"><i></i></div><div><div class="t">You avoided paying $18 today</div><div class="s">Best day this month.</div></div></div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" data-go="s-app">Allow notifications</button>
+    <button class="btn quiet" data-go="s-app">Maybe later</button>
+  </section>
+
+  <!-- ============ APP ============ -->
+  <section class="screen" id="s-app">
+    <div class="views">
+
+      <!-- TODAY -->
+      <div class="view active" id="v-today">
+        <div class="today-head">
+          <span class="today-date" id="todayDate">Monday, July 20</span>
+          <span class="streak-chip"><b class="tnum js-streak">12</b><span>day streak</span></span>
+        </div>
+        <div class="ringwrap">
+          <div class="ring" id="ring" title="Tap to pause the meter">
+            <div class="hole">
+              <div class="big tnum" id="ringTime">3:18</div>
+              <div class="sub" id="ringSub">18m over</div>
+            </div>
+          </div>
+        </div>
+        <div class="card rentcard">
+          <div><div class="k">Today's rent</div><div class="big tnum" id="rentToday"><span class="odom">$2.70</span></div></div>
+          <div style="text-align:right"><div class="k">This month</div><div class="mo tnum" id="rentMonth">$31.05</div></div>
+        </div>
+        <div class="actions">
+          <button class="btn green" id="btnFocus">Start Focus</button>
+          <button class="btn ghost" id="btnGoal">Set a goal</button>
+        </div>
+        <div class="tiles">
+          <div class="tile"><div class="k">Money avoided</div><div class="v g tnum" id="tileAvoided">$84</div></div>
+          <div class="tile"><div class="k">Time reclaimed</div><div class="v tnum">9h 20m</div></div>
+          <div class="tile"><div class="k">Focus score</div><div class="v tnum">86</div></div>
+        </div>
+        <div class="card weekcard">
+          <div class="whead"><b>This week</b><span id="weekAvg">avg 2h 51m</span></div>
+          <div class="bars" id="weekBars"></div>
+          <div class="daylabels"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span class="today">S</span></div>
+        </div>
+        <div class="footline">Your cheapest week since June<span class="dotg">.</span></div>
+      </div>
+
+      <!-- RENT -->
+      <div class="view" id="v-rent">
+        <div class="vtitle">Rent</div>
+        <div class="seg" id="rentSeg">
+          <button class="on" data-pane="today">Today</button>
+          <button data-pane="month">July</button>
+        </div>
+        <div id="rent-today" style="display:flex;flex-direction:column;gap:16px">
+          <div class="receipt">
+            <div class="rhead"><span class="js-stmtDate">STATEMENT · JUL 20</span><span class="js-stmtNo">#0142</span></div>
+            <div class="line"><span>Free allowance</span><span class="tnum js-lnAllow">3h 00m · $0.00</span></div>
+            <div class="line"><span>Extra time</span><span class="tnum js-lnExtra">18m × $0.15</span></div>
+            <div class="total"><b>Total rent</b><span class="sum tnum js-lnTotal">$2.70</span></div>
+            <div class="fine">Virtual bill. Nothing is charged. It's about knowing the price.</div>
+          </div>
+          <div class="card applist">
+            <h4 id="whereTitle">Where the 18 minutes went</h4>
+            <div class="approw"><span class="nm">TikTok</span><span class="rt"><span class="track"><i id="wTik"></i></span><span class="mm tnum" id="wTikM">12m</span></span></div>
+            <div class="approw"><span class="nm">Instagram</span><span class="rt"><span class="track"><i id="wIns"></i></span><span class="mm tnum" id="wInsM">5m</span></span></div>
+            <div class="approw"><span class="nm">X</span><span class="rt"><span class="track"><i id="wX"></i></span><span class="mm tnum" id="wXM">1m</span></span></div>
+          </div>
+          <button class="btn" id="btnEndDay">Close the day — generate bill</button>
+        </div>
+        <div id="rent-month" style="display:none;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between">
+            <span style="font-size:22px;font-weight:700;letter-spacing:-.02em">July</span>
+            <span style="font-size:13px;color:rgba(255,255,255,.45)" id="dayCount">20 of 31 days</span>
+          </div>
+          <div class="mo-cards">
+            <div class="mo-card"><div class="k">Rent so far</div><div class="v tnum" style="color:var(--rent)" id="moRent">$31.05</div><div class="d g">▼ 38% vs June</div></div>
+            <div class="mo-card"><div class="k">Avoided</div><div class="v tnum" style="color:var(--signal)" id="moAvoided">$84.00</div><div class="d" id="moFreeDays">14 free days</div></div>
+          </div>
+          <div class="card" style="padding:18px 20px">
+            <h4 style="margin:0 0 14px;font-size:15px;font-weight:600">Rent calendar</h4>
+            <div class="cal" id="cal"></div>
+            <div class="legend">
+              <span><i style="background:rgba(0,230,118,.55)"></i>Free day</span>
+              <span><i style="background:rgba(255,59,48,.5)"></i>Paid rent</span>
+            </div>
+          </div>
+          <div class="card hist">
+            <h4>Daily ledger</h4>
+            <div id="ledger" style="display:flex;flex-direction:column;gap:13px"></div>
+          </div>
+          <div class="card hist">
+            <h4>History</h4>
+            <div class="row"><span>June</span><b class="tnum">$50.10</b></div>
+            <div class="row"><span>May</span><b class="tnum">$67.95</b></div>
+            <div class="row"><span>April</span><b class="tnum">$71.40</b></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INSIGHTS -->
+      <div class="view" id="v-insights">
+        <div class="vtitle">Insights</div>
+        <div class="chips" id="periodChips">
+          <button class="chip on" data-p="W">W</button>
+          <button class="chip" data-p="M">M</button>
+          <button class="chip" data-p="6M">6M</button>
+          <button class="chip" data-p="Y">Y</button>
+        </div>
+        <div class="card icard">
+          <div class="k">Daily average</div>
+          <div class="hl"><b class="tnum" id="avgVal">2h 51m</b><span id="avgDelta">▼ 24m vs last week</span></div>
+          <div class="ibars" id="insBars"></div>
+          <div class="ibars-note">— 3h free line</div>
+        </div>
+        <div class="bw">
+          <div class="tile"><div class="k">Best day</div><div class="v g" id="bestDay">Thu · 1h 26m</div></div>
+          <div class="tile"><div class="k">Worst day</div><div class="v r" id="worstDay" style="color:var(--rent)">Wed · 4h 02m</div></div>
+        </div>
+        <div class="card">
+          <h4 style="margin:0 0 4px;font-size:15px;font-weight:600">Danger hours</h4>
+          <div style="font-size:13px;color:rgba(255,255,255,.5);margin-bottom:14px">You doomscroll most between 22:00–01:00.</div>
+          <div class="hours" id="hours"></div>
+          <div class="hourlabels"><span>06</span><span>12</span><span>18</span><span>24</span></div>
+        </div>
+        <div class="card proj">
+          <div><div style="font-size:15px;font-weight:600">Projection</div><div style="font-size:13px;color:rgba(255,255,255,.5);margin-top:2px">On this pace, July's rent lands at</div></div>
+          <span class="v tnum" id="projVal">~$48</span>
+        </div>
+        <div class="vtitle" style="font-size:22px;margin-top:8px">Apps</div>
+        <div class="chips" id="catChips">
+          <button class="chip on" data-c="all">All</button>
+          <button class="chip" data-c="social">Social</button>
+          <button class="chip" data-c="video">Video</button>
+          <button class="chip" data-c="games">Games</button>
+        </div>
+        <div class="card usage" id="usageList"></div>
+        <div class="card exempt">
+          <div><div class="t">Exempt apps</div><div class="s">Maps, Messages, Phone don't count</div></div>
+          <a id="editExempt">Edit</a>
+        </div>
+        <div class="insight-call">
+          <div class="t">Insight</div>
+          <div class="s">TikTok alone caused 71% of your rent this month. Capping it at 45m would have saved you $22.</div>
+        </div>
+      </div>
+
+      <!-- AWARDS -->
+      <div class="view" id="v-awards">
+        <div class="vtitle">Achievements</div>
+        <div class="card streakcard">
+          <div class="n tnum js-streak">12</div>
+          <div class="k">days under budget</div>
+          <div class="pips" id="pips"></div>
+          <div class="next" id="streakNext">2 days to "Two Weeks Clean"</div>
+        </div>
+        <div class="badges">
+          <div class="badge"><div class="shimmer"></div><div class="coin"><div class="in tnum">7</div></div><div class="t">First Week</div><div class="s">7 days under 3h</div></div>
+          <div class="badge"><div class="shimmer"></div><div class="coin"><div class="in tnum">$50</div></div><div class="t">Saver</div><div class="s">$50 avoided</div></div>
+          <div class="badge locked" id="badgeTwoWeeks"><div class="shimmer"></div><div class="coin"><div class="in tnum">14</div></div><div class="t">Two Weeks Clean</div><div class="s">14-day streak · locked</div></div>
+          <div class="badge locked"><div class="shimmer"></div><div class="coin"><div class="in tnum">0:00</div></div><div class="t">Zero Day</div><div class="s">A full day off · locked</div></div>
+        </div>
+        <div class="card challenge">
+          <div><div class="t">Challenge: Sub-3 Week</div><div class="s" id="chalSub">Every day under 3h · 5/7 done</div></div>
+          <div class="mini-ring" id="chalRing"><div class="in tnum" id="chalVal">5/7</div></div>
+        </div>
+      </div>
+
+      <!-- SETTINGS -->
+      <div class="view" id="v-settings">
+        <div class="vtitle">Settings</div>
+        <div class="group">
+          <div class="srow" id="rowAllowance"><span class="l">Daily free allowance</span><span class="r tnum" id="valAllowance">3h ›</span></div>
+          <div class="srow" id="rowRate"><span class="l">Rent rate</span><span class="r tnum" id="valRate">$0.15/min ›</span></div>
+          <div class="srow"><span class="l">Exempt apps</span><span class="r">6 ›</span></div>
+        </div>
+        <div class="group">
+          <div class="srow"><span class="l">Notifications</span><span class="r">›</span></div>
+          <div class="srow"><span class="l">Widgets &amp; Live Activity</span><span class="r">›</span></div>
+          <div class="srow"><span class="l">Appearance</span><span class="r">Dark ›</span></div>
+        </div>
+        <div class="group">
+          <div class="srow" id="rowSub"><span class="l">Subscription</span><span class="r" id="valSub">Free ›</span></div>
+          <div class="srow"><span class="l">Privacy &amp; data</span><span class="r">›</span></div>
+        </div>
+        <div class="danger">
+          <div class="head">
+            <div><div class="t">Real payments</div><div class="s">Actually charge your rent via Apple Pay</div></div>
+            <div class="toggle" id="tglReal"></div>
+          </div>
+          <div class="fine">Off by default. Requires Face ID and a 24h cooling-off period. Proceeds go to a charity you pick — never to us.</div>
+        </div>
+        <button class="delete" id="btnDelete">Delete account</button>
+      </div>
+
+    </div>
+
+    <!-- demo controls -->
+    <div class="demobar">
+      <span class="dlabel">DEMO</span>
+      <button class="dbtn on" id="sp1">×1</button>
+      <button class="dbtn" id="sp60">×60</button>
+      <button class="dbtn" id="dAdd">+30 min</button>
+      <button class="dbtn" id="dEnd">End day</button>
+      <button class="dbtn" id="dReset">Reset</button>
+    </div>
+
+    <nav class="tabbar">
+      <button class="tab on" data-view="v-today">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="2.4" opacity=".35"/><path d="M12 3.5a8.5 8.5 0 016.9 13.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+        Today
+      </button>
+      <button class="tab" data-view="v-rent">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M6 3h12v18l-2-1.4L14 21l-2-1.4L10 21l-2-1.4L6 21V3z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M9 8.5h6M9 12h6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        Rent
+      </button>
+      <button class="tab" data-view="v-insights">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="12" width="3.4" height="8" rx="1.4" fill="currentColor"/><rect x="10.3" y="7" width="3.4" height="13" rx="1.4" fill="currentColor"/><rect x="16.6" y="4" width="3.4" height="16" rx="1.4" fill="currentColor"/></svg>
+        Insights
+      </button>
+      <button class="tab" data-view="v-awards">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="9.5" r="5.7" stroke="currentColor" stroke-width="2.2"/><path d="M9 14.5L7.5 21l4.5-2.4L16.5 21 15 14.5" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/></svg>
+        Awards
+      </button>
+      <button class="tab" data-view="v-settings">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3L5.5 5.5" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>
+        Settings
+      </button>
+    </nav>
+  </section>
+
+  <!-- system dialog (screen time) -->
+  <div class="sysdim" id="dimST">
+    <div class="sysdialog">
+      <h3>"RentYourTime" Would Like to Access Screen Time</h3>
+      <p>Used only to measure daily usage on this device.</p>
+      <div class="acts">
+        <button id="stDeny">Don't Allow</button>
+        <button id="stAllow">Allow</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- bill ceremony (midnight) -->
+  <div class="sheetdim" id="dimBill"></div>
+  <div class="billwrap" id="billWrap">
+    <div class="receipt">
+      <div class="stamp" id="billStamp">SETTLED</div>
+      <div class="rhead"><span class="js-stmtDate">STATEMENT · JUL 20</span><span class="js-stmtNo">#0142</span></div>
+      <div class="line"><span>Free allowance</span><span class="tnum js-lnAllow">3h 00m · $0.00</span></div>
+      <div class="line"><span>Extra time</span><span class="tnum js-lnExtra">18m × $0.15</span></div>
+      <div class="total"><b>Total rent</b><span class="sum tnum js-lnTotal">$2.70</span></div>
+      <div class="fine" id="billFine">Virtual bill. Nothing is charged. It's about knowing the price.</div>
+    </div>
+    <button class="btn" id="btnNoted">Noted.</button>
+  </div>
+
+  <!-- premium sheet -->
+  <div class="sheetdim" id="dimPro"></div>
+  <div class="sheet" id="sheetPro">
+    <div class="grabber"></div>
+    <div class="pro-eyebrow">RENTYOURTIME PRO</div>
+    <div class="pro-title">Know exactly<br>what your time<br>is worth.</div>
+    <div class="pro-feats">
+      <div class="f"><i></i><span>Danger-hour predictions &amp; yearly trends</span></div>
+      <div class="f"><i></i><span>Per-app rent rates &amp; custom allowance</span></div>
+      <div class="f"><i></i><span>Focus sessions, Watch app, widgets</span></div>
+    </div>
+    <div class="plan featured" style="margin-top:10px">
+      <div class="flag">FOUNDER · 85% OFF FOREVER</div>
+      <div><div class="t">Yearly</div><div class="s"><s>$59.99</s> → locked for life</div></div>
+      <div class="p tnum">$8.99<span>/yr</span></div>
+    </div>
+    <div class="plan">
+      <div class="t">Monthly</div>
+      <div class="p tnum">$3.99<span>/mo</span></div>
+    </div>
+    <button class="btn green" id="btnClaim">Claim founder price</button>
+    <div class="pro-fine">Cancel anytime · Restore purchase · Terms</div>
+  </div>
+
+  <!-- confirm modal -->
+  <div class="sysdim" id="dimConfirm">
+    <div class="modal">
+      <h3 id="cfTitle">Enable real payments?</h3>
+      <p id="cfBody">Your rent will actually be charged via Apple Pay after a 24h cooling-off period.</p>
+      <div class="acts">
+        <button class="btn ghost" id="cfNo">Not now</button>
+        <button class="btn" id="cfYes">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+</main>
+<script type="module">
+(function(){
+"use strict";
+var $=function(s){return document.querySelector(s)};
+var $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s))};
+var reduceMotion=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ================= state ================= */
+var DEF={
+  allowanceMin:180,
+  rate:0.15,
+  usedSec:3*3600+18*60+44,        // live day starts at the design state: 3:18:44
+  monthRent:28.35,                 // completed days of July
+  avoided:84,
+  streak:12,
+  daysDone:19,                     // completed days → today is day 20
+  dayStates:["g","g","r","g","R","r","g","g","G","g","r","g","g","rr","g","g","g","r","g"],
+  ledger:[],                       // days closed during the demo
+  week:[145,197,241,115,158,216],  // Mon..Sat minutes; Sunday is live
+  chalDone:5,
+  pro:false,realPay:false
+};
+var S=(function(){
+  try{
+    var s=JSON.parse(localStorage.getItem("ryt-demo")||"null");
+    if(s&&typeof s.usedSec==="number")return s;
+  }catch(e){}
+  return JSON.parse(JSON.stringify(DEF));
+})();
+S.focus=false;
+var speed=1;
+function persist(){try{localStorage.setItem("ryt-demo",JSON.stringify(S))}catch(e){}}
+
+function usedMin(){return Math.floor(S.usedSec/60)}
+function overMin(){return Math.max(0,usedMin()-S.allowanceMin)}
+function rentToday(){return overMin()*S.rate}
+function fmtHM(sec){var m=Math.floor(sec/60);return Math.floor(m/60)+":"+String(m%60).padStart(2,"0")}
+function fmtHm2(min){return Math.floor(min/60)+"h "+String(min%60).padStart(2,"0")+"m"}
+function fmt$(n){return "$"+n.toFixed(2)}
+function simDate(){
+  var d=new Date();
+  d.setDate(d.getDate()+(S.daysDone-19)); // demo days advance the calendar
+  return d;
+}
+
+/* ================= navigation ================= */
+function go(id){
+  $$(".screen").forEach(function(s){s.classList.remove("active","enter")});
+  var el=document.getElementById(id);
+  el.classList.add("active","enter");
+  if(id==="s-app"){grow($("#weekBars"));render()}
+}
+$$("[data-go]").forEach(function(b){
+  b.addEventListener("click",function(){
+    if(b.dataset.go==="s-app")localStorage.setItem("ryt-onboarded","1");
+    go(b.dataset.go);
+  });
+});
+window.addEventListener("load",function(){
+  go("s-splash");
+  setTimeout(function(){
+    go(localStorage.getItem("ryt-onboarded")==="1"?"s-app":"s-welcome");
+  },reduceMotion?600:1900);
+});
+$("#btnConnectST").addEventListener("click",function(){$("#dimST").classList.add("show")});
+$("#stAllow").addEventListener("click",function(){$("#dimST").classList.remove("show");go("s-perm2")});
+$("#stDeny").addEventListener("click",function(){$("#dimST").classList.remove("show");toast("The meter can't run without Screen Time")});
+
+$$(".tab").forEach(function(t){
+  t.addEventListener("click",function(){
+    $$(".tab").forEach(function(x){x.classList.remove("on")});
+    t.classList.add("on");
+    $$(".view").forEach(function(v){v.classList.remove("active","enter")});
+    var v=document.getElementById(t.dataset.view);
+    v.classList.add("active","enter");
+    v.scrollTop=0;
+    if(t.dataset.view==="v-today")grow($("#weekBars"));
+    if(t.dataset.view==="v-insights")grow($("#insBars"));
+  });
+});
+function grow(el){
+  if(!el)return;
+  el.classList.remove("grown");
+  void el.offsetWidth;
+  requestAnimationFrame(function(){el.classList.add("grown")});
+}
+
+/* ================= live meter + demo clock ================= */
+var lastRentText="",billOpen=false;
+setInterval(function(){
+  if(!S.focus&&!billOpen){
+    var before=S.usedSec;
+    S.usedSec+=speed;
+    checkThresholds(before,S.usedSec);
+  }
+  render();
+},1000);
+
+function checkThresholds(before,after){
+  var allow=S.allowanceMin*60;
+  var rBefore=allow-before,rAfter=allow-after;
+  if(rBefore>2700&&rAfter<=2700)
+    banner("45 minutes free left","Still on the house. Spend them somewhere good.");
+  if(rBefore>0&&rAfter<=0)
+    banner("The meter just started","You're past "+(S.allowanceMin/60)+" hours. Every minute is now $"+S.rate.toFixed(2)+".");
+}
+
+function render(){
+  var over=overMin(),rent=rentToday();
+  var used=S.usedSec,allow=S.allowanceMin*60;
+  /* ring */
+  var ring=$("#ring"),g,r;
+  if(used<=allow){g=used/allow*100;r=0}
+  else{g=allow/used*100;r=100-g}
+  ring.style.background=r>0
+    ?"conic-gradient(var(--signal) 0 "+g+"%, var(--rent) "+g+"% 100%)"
+    :"conic-gradient(var(--signal) 0 "+g+"%, rgba(255,255,255,.1) "+g+"% 100%)";
+  $("#ringTime").textContent=fmtHM(used);
+  var sub=$("#ringSub");
+  if(S.focus){sub.textContent="meter paused";sub.className="sub free"}
+  else if(over>0){sub.textContent=over+"m over";sub.className="sub"}
+  else{sub.textContent=fmtHM(allow-used)+" free left";sub.className="sub free"}
+  /* rent */
+  var rt=fmt$(rent);
+  var odom=$("#rentToday .odom");
+  if(rt!==lastRentText){
+    odom.textContent=rt;
+    odom.classList.remove("flip");void odom.offsetWidth;odom.classList.add("flip");
+    lastRentText=rt;
+  }
+  $("#rentToday").className="big tnum"+(rent===0?" free":"");
+  $("#rentMonth").textContent=fmt$(S.monthRent+rent);
+  $("#moRent").textContent=fmt$(S.monthRent+rent);
+  /* receipt(s) — Rent tab + bill overlay share classes */
+  var d=simDate();
+  var stmt="STATEMENT · "+d.toLocaleDateString("en-US",{month:"short",day:"numeric"}).toUpperCase().replace(",","");
+  $$(".js-stmtDate").forEach(function(e){e.textContent=stmt});
+  $$(".js-stmtNo").forEach(function(e){e.textContent="#"+String(122+S.daysDone).padStart(4,"0")});
+  $$(".js-lnAllow").forEach(function(e){e.textContent=(used>=allow?fmtHm2(S.allowanceMin):fmtHm2(usedMin()))+" · $0.00"});
+  $$(".js-lnExtra").forEach(function(e){e.textContent=over+"m × $"+S.rate.toFixed(2)});
+  $$(".js-lnTotal").forEach(function(e){e.textContent=rt});
+  $("#whereTitle").textContent=over>0?"Where the "+over+" minutes went":"Nothing over yet";
+  var tik=Math.round(over*2/3),ins=Math.round(over*5/18),x=Math.max(0,over-tik-ins);
+  var mx=Math.max(tik,1);
+  $("#wTik").style.width=(tik/mx*70)+"%";$("#wTikM").textContent=tik+"m";
+  $("#wIns").style.width=(ins/mx*70)+"%";$("#wInsM").textContent=ins+"m";
+  $("#wX").style.width=(x/mx*70)+"%";$("#wXM").textContent=x+"m";
+  /* header + counters */
+  $("#todayDate").textContent=d.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
+  $$(".js-streak").forEach(function(e){e.textContent=S.streak});
+  $("#tileAvoided").textContent="$"+Math.round(S.avoided);
+  $("#moAvoided").textContent=fmt$(S.avoided);
+  $("#moFreeDays").textContent=S.dayStates.filter(function(x){return x[0]==="g"||x[0]==="G"}).length+" free days";
+  $("#dayCount").textContent=Math.min(31,S.daysDone+1)+" of 31 days";
+  /* projection */
+  var dayN=Math.min(31,S.daysDone+1);
+  var proj=(S.monthRent+rent)/dayN*31;
+  $("#projVal").textContent="~$"+Math.round(proj);
+  /* week chart */
+  renderWeek();
+  /* streak card details */
+  var toNext=Math.max(0,14-S.streak);
+  $("#streakNext").textContent=toNext>0?toNext+" day"+(toNext===1?"":"s")+" to \"Two Weeks Clean\"":"\"Two Weeks Clean\" unlocked";
+  var pips=$("#pips");
+  if(pips.childElementCount!==7)
+    pips.innerHTML="<i></i><i></i><i></i><i></i><i></i><i></i><i></i>";
+  Array.prototype.forEach.call(pips.children,function(p,i){
+    p.className=i<(S.streak%7===0&&S.streak>0?7:S.streak%7)?"on":"";
+  });
+  $("#chalSub").textContent="Every day under 3h · "+S.chalDone+"/7 done";
+  $("#chalVal").textContent=S.chalDone+"/7";
+  $("#chalRing").style.background="conic-gradient(var(--signal) 0 "+(S.chalDone/7*100)+"%,rgba(255,255,255,.1) 0)";
+  renderCal();
+  renderLedger();
+}
+
+var weekEl=$("#weekBars"),weekBuilt=false;
+function weekBar(min,isToday){
+  var h=Math.max(6,Math.min(100,min/240*100));
+  var bg;
+  if(min<=S.allowanceMin)bg="var(--signal)";
+  else{
+    var cap=S.allowanceMin/Math.max(min,240)*100/(h/100);
+    cap=Math.min(96,S.allowanceMin/240*100/h*100);
+    bg="linear-gradient(to top,rgba(255,255,255,"+(isToday?".24":".16")+") "+cap+"%,var(--rent) "+cap+"%)";
+  }
+  return {h:h,bg:bg};
+}
+function renderWeek(){
+  var mins=S.week.concat([usedMin()]);
+  if(!weekBuilt){
+    weekEl.innerHTML="";
+    mins.forEach(function(_,i){
+      var b=document.createElement("i");
+      b.style.transitionDelay=(i*55)+"ms";
+      weekEl.appendChild(b);
+    });
+    weekBuilt=true;
+  }
+  Array.prototype.forEach.call(weekEl.children,function(b,i){
+    var d=weekBar(mins[i],i===6);
+    b.style.height=d.h+"%";
+    b.style.background=d.bg;
+    if(i===6){b.style.outline="1.5px solid rgba(255,255,255,.35)";b.style.outlineOffset="2px"}
+  });
+  var avg=Math.round(mins.reduce(function(a,b){return a+b},0)/7);
+  $("#weekAvg").textContent="avg "+fmtHm2(avg);
+}
+
+/* rent calendar */
+var calColors={g:"rgba(0,230,118,.55)",G:"rgba(0,230,118,.3)",r:"rgba(255,59,48,.35)",R:"rgba(255,59,48,.7)",rr:"rgba(255,59,48,.5)"};
+function renderCal(){
+  var cal=$("#cal");
+  cal.innerHTML="";
+  for(var d=1;d<=31;d++){
+    var i=document.createElement("i");
+    if(d<=S.dayStates.length)i.style.background=calColors[S.dayStates[d-1]]||calColors.g;
+    else if(d===S.daysDone+1){i.style.background="rgba(255,255,255,.25)";i.style.outline="1.5px solid rgba(255,255,255,.4)";i.style.outlineOffset="1px"}
+    else i.style.background="rgba(255,255,255,.05)";
+    cal.appendChild(i);
+  }
+}
+function renderLedger(){
+  var el=$("#ledger");
+  if(!S.ledger.length){el.innerHTML='<div style="font-size:13px;color:rgba(255,255,255,.4)">Close a day (DEMO → End day) and it will be filed here.</div>';return}
+  el.innerHTML="";
+  S.ledger.slice().reverse().forEach(function(e){
+    var row=document.createElement("div");row.className="row";
+    row.innerHTML="<span></span><b class='tnum'></b>";
+    row.firstChild.textContent=e.date+" · "+e.time;
+    var b=row.querySelector("b");
+    b.textContent=fmt$(e.rent);
+    if(e.rent===0)b.classList.add("g");
+    el.appendChild(row);
+  });
+}
+
+/* ================= focus ================= */
+$("#btnFocus").addEventListener("click",toggleFocus);
+$("#ring").addEventListener("click",toggleFocus);
+var focusStart=0;
+function toggleFocus(){
+  S.focus=!S.focus;
+  $("#btnFocus").textContent=S.focus?"End Focus":"Start Focus";
+  $("#btnFocus").classList.toggle("ghost",S.focus);
+  $("#btnFocus").classList.toggle("green",!S.focus);
+  if(S.focus){focusStart=Date.now();toast("Meter paused — focus session running")}
+  else{
+    var m=Math.max(1,Math.round((Date.now()-focusStart)/60000*speed));
+    toast("Focus done — you kept "+m+" minute"+(m===1?"":"s")+" off the meter");
+  }
+  render();
+}
+$("#btnGoal").addEventListener("click",function(){
+  if(S.pro)toast("Goals — coming to Pro soon");
+  else openPro();
+});
+
+/* ================= demo controls ================= */
+function setSpeed(x){
+  speed=x;
+  $("#sp1").classList.toggle("on",x===1);
+  $("#sp60").classList.toggle("on",x===60);
+  toast(x===1?"Real time":"Fast-forward: 1 minute per second");
+}
+$("#sp1").addEventListener("click",function(){setSpeed(1)});
+$("#sp60").addEventListener("click",function(){setSpeed(60)});
+$("#dAdd").addEventListener("click",function(){
+  var before=S.usedSec;
+  S.usedSec+=1800;
+  checkThresholds(before,S.usedSec);
+  persist();render();
+  toast("+30 minutes of screen time");
+});
+$("#dEnd").addEventListener("click",openBill);
+$("#dReset").addEventListener("click",function(){
+  confirmModal("Reset the demo?","Everything goes back to the starting state, including onboarding.","Reset",function(){
+    try{localStorage.removeItem("ryt-demo");localStorage.removeItem("ryt-onboarded")}catch(e){}
+    location.reload();
+  });
+});
+$("#btnEndDay").addEventListener("click",openBill);
+
+/* ================= bill ceremony ================= */
+function openBill(){
+  S.focus=false;
+  billOpen=true;
+  render();
+  var rent=rentToday();
+  var st=$("#billStamp");
+  st.textContent=rent>0?"RENT DUE":"ON THE HOUSE";
+  st.className="stamp "+(rent>0?"paid":"free");
+  $("#billFine").textContent=rent>0
+    ?"Virtual bill. Nothing is charged. It's about knowing the price."
+    :"A free day. The landlord tips his hat.";
+  $("#dimBill").classList.add("show");
+  $("#billWrap").classList.add("show");
+  setTimeout(function(){st.classList.add("show")},reduceMotion?0:550);
+}
+$("#btnNoted").addEventListener("click",function(){
+  var rent=rentToday(),um=usedMin();
+  var d=simDate();
+  /* file the day */
+  S.monthRent+=rent;
+  S.ledger.push({
+    date:d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}),
+    time:fmtHm2(um),rent:rent
+  });
+  if(S.dayStates.length<31)S.dayStates.push(rent>0?"rr":"g");
+  var wasUnder=rent===0;
+  if(wasUnder){
+    S.streak++;
+    S.avoided+=Math.max(0,(S.allowanceMin-um))*S.rate;
+    S.chalDone=Math.min(7,S.chalDone+1);
+  }else{
+    S.streak=0;S.chalDone=0;
+  }
+  S.daysDone=Math.min(31,S.daysDone+1);
+  S.week.shift();S.week.push(um);
+  S.usedSec=0;
+  lastRentText="";
+  persist();
+  /* close ceremony */
+  billOpen=false;
+  $("#billStamp").classList.remove("show");
+  $("#dimBill").classList.remove("show");
+  $("#billWrap").classList.remove("show");
+  render();
+  grow($("#weekBars"));
+  if(wasUnder&&S.streak===14)unlockTwoWeeks();
+  setTimeout(function(){
+    banner(wasUnder?"You avoided paying "+fmt$(Math.max(0,(S.allowanceMin-um))*S.rate)+" today":"Rent settled: "+fmt$(rent),
+      "New day — 3 free hours on the house.");
+  },reduceMotion?50:500);
+});
+function unlockTwoWeeks(){
+  var b=$("#badgeTwoWeeks");
+  b.classList.remove("locked");
+  b.classList.add("unlocking");
+  b.querySelector(".s").textContent="14-day streak";
+  toast("Achievement unlocked: Two Weeks Clean");
+}
+
+/* ================= insights ================= */
+var insDatasets={
+  "W":{avg:"2h 51m",delta:"▼ 24m vs last week",best:"Thu · 1h 26m",worst:"Wed · 4h 02m",
+    bars:[145,197,241,115,158,216,230]},
+  "M":{avg:"3h 04m",delta:"▼ 38% vs June",best:"Jul 9 · 0h 58m",worst:"Jul 5 · 4h 40m",
+    bars:[188,154,244,126,212,144,226]},
+  "6M":{avg:"3h 42m",delta:"▼ 51m vs winter",best:"July · 3h 04m",worst:"Feb · 4h 31m",
+    bars:[232,244,212,194,168,150,140]},
+  "Y":{avg:"3h 58m",delta:"first year on the meter",best:"July · 3h 04m",worst:"Dec · 4h 55m",
+    bars:[218,242,204,184,222,160,140]}
+};
+function setPeriod(p){
+  var d=insDatasets[p];
+  $("#avgVal").textContent=d.avg;
+  $("#avgDelta").textContent=d.delta;
+  $("#bestDay").textContent=d.best;
+  $("#worstDay").textContent=d.worst;
+  var el=$("#insBars");
+  el.innerHTML="";
+  d.bars.forEach(function(min,i){
+    var b=document.createElement("i");
+    var w=weekBar(min,false);
+    b.style.height=w.h+"%";
+    b.style.background=w.bg;
+    b.style.transitionDelay=(i*55)+"ms";
+    el.appendChild(b);
+  });
+  var line=document.createElement("span");
+  line.className="free-line";
+  line.style.top=(100-S.allowanceMin/240*100)+"%";
+  el.appendChild(line);
+  grow(el);
+}
+$$("#periodChips .chip").forEach(function(c){
+  c.addEventListener("click",function(){
+    $$("#periodChips .chip").forEach(function(x){x.classList.remove("on")});
+    c.classList.add("on");
+    setPeriod(c.dataset.p);
+  });
+});
+setPeriod("W");
+
+var hourHeat=["rgba(0,230,118,.2)","rgba(0,230,118,.15)","rgba(255,255,255,.05)","rgba(255,255,255,.05)",
+"rgba(0,230,118,.25)","rgba(0,230,118,.35)","rgba(0,230,118,.3)","rgba(0,230,118,.45)",
+"rgba(255,59,48,.4)","rgba(255,59,48,.7)","rgba(255,59,48,.9)","rgba(255,59,48,.55)"];
+hourHeat.forEach(function(c){
+  var i=document.createElement("i");i.style.background=c;$("#hours").appendChild(i);
+});
+
+var apps=[
+  {n:"TikTok",cat:"video",time:"1h 24m",rent:"$1.90",w:84,over:76},
+  {n:"Instagram",cat:"social",time:"52m",rent:"$0.80",w:52},
+  {n:"YouTube",cat:"video",time:"38m",w:38},
+  {n:"Reddit",cat:"social",time:"16m",w:16},
+  {n:"Clash Royale",cat:"games",time:"11m",w:11},
+  {n:"Messages",cat:"free",time:"8m",free:true,w:8}
+];
+function renderApps(cat){
+  var el=$("#usageList");el.innerHTML="";
+  apps.filter(function(a){return cat==="all"||a.cat===cat}).forEach(function(a){
+    var row=document.createElement("div");row.className="u-row";
+    var fill;
+    if(a.free)fill="var(--signal)";
+    else if(a.over)fill="linear-gradient(to right,rgba(255,255,255,.35) "+a.over+"%,var(--rent) "+a.over+"%)";
+    else fill="rgba(255,255,255,.35)";
+    row.innerHTML='<div class="u-head"><b></b><span class="tnum"></span></div><div class="track"><i></i></div>';
+    row.querySelector("b").textContent=a.n;
+    var sp=row.querySelector("span");
+    sp.textContent=a.time+(a.free?" · free":"");
+    if(a.rent){sp.innerHTML="";sp.append(a.time+" · ");var em=document.createElement("em");em.textContent=a.rent;sp.appendChild(em)}
+    var bar=row.querySelector(".track i");
+    bar.style.width=a.w+"%";bar.style.background=fill;
+    el.appendChild(row);
+  });
+}
+$$("#catChips .chip").forEach(function(c){
+  c.addEventListener("click",function(){
+    $$("#catChips .chip").forEach(function(x){x.classList.remove("on")});
+    c.classList.add("on");
+    renderApps(c.dataset.c);
+  });
+});
+renderApps("all");
+$("#editExempt").addEventListener("click",function(){toast("Exempt apps — Maps, Messages, Phone +3")});
+
+/* ================= rent segments ================= */
+$$("#rentSeg button").forEach(function(b){
+  b.addEventListener("click",function(){
+    $$("#rentSeg button").forEach(function(x){x.classList.remove("on")});
+    b.classList.add("on");
+    $("#rent-today").style.display=b.dataset.pane==="today"?"flex":"none";
+    $("#rent-month").style.display=b.dataset.pane==="month"?"flex":"none";
+  });
+});
+
+/* ================= settings ================= */
+var allowOpts=[120,180,240],rateOpts=[0.10,0.15,0.25];
+$("#rowAllowance").addEventListener("click",function(){
+  var i=(allowOpts.indexOf(S.allowanceMin)+1)%allowOpts.length;
+  S.allowanceMin=allowOpts[i];
+  $("#valAllowance").textContent=(S.allowanceMin/60)+"h ›";
+  toast("Free allowance: "+(S.allowanceMin/60)+" hours a day");
+  persist();render();
+});
+$("#rowRate").addEventListener("click",function(){
+  var i=(rateOpts.indexOf(S.rate)+1)%rateOpts.length;
+  S.rate=rateOpts[i];
+  $("#valRate").textContent="$"+S.rate.toFixed(2)+"/min ›";
+  toast("Rent rate: $"+S.rate.toFixed(2)+" per extra minute");
+  persist();render();
+});
+$("#valAllowance").textContent=(S.allowanceMin/60)+"h ›";
+$("#valRate").textContent="$"+S.rate.toFixed(2)+"/min ›";
+
+function openPro(){$("#dimPro").classList.add("show");$("#sheetPro").classList.add("show")}
+function closePro(){$("#dimPro").classList.remove("show");$("#sheetPro").classList.remove("show")}
+$("#rowSub").addEventListener("click",openPro);
+$("#dimPro").addEventListener("click",closePro);
+$("#btnClaim").addEventListener("click",function(){
+  S.pro=true;persist();
+  $("#valSub").textContent="Pro ›";
+  $("#valSub").classList.add("g");
+  closePro();
+  toast("Welcome to Pro — founder price locked for life");
+});
+if(S.pro){$("#valSub").textContent="Pro ›";$("#valSub").classList.add("g")}
+
+/* confirm modal helper */
+var cfCb=null;
+function confirmModal(title,body,yes,cb){
+  $("#cfTitle").textContent=title;
+  $("#cfBody").textContent=body;
+  $("#cfYes").textContent=yes;
+  cfCb=cb;
+  $("#dimConfirm").classList.add("show");
+}
+$("#cfNo").addEventListener("click",function(){$("#dimConfirm").classList.remove("show");cfCb=null});
+$("#cfYes").addEventListener("click",function(){
+  $("#dimConfirm").classList.remove("show");
+  var cb=cfCb;cfCb=null;
+  if(cb)cb();
+});
+
+/* real payments — double confirm */
+var tgl=$("#tglReal");
+tgl.classList.toggle("on",S.realPay);
+tgl.addEventListener("click",function(){
+  if(S.realPay){
+    S.realPay=false;tgl.classList.remove("on");persist();
+    toast("Real payments off");
+    return;
+  }
+  confirmModal("Enable real payments?","Your rent will actually be charged via Apple Pay. Proceeds go to a charity you pick — never to us.","Continue",function(){
+    confirmModal("Are you sure?","This needs Face ID and starts a 24h cooling-off period before the first charge.","Enable",function(){
+      S.realPay=true;tgl.classList.add("on");persist();
+      toast("Real payments arm in 24h");
+    });
+  });
+});
+
+/* delete account */
+$("#btnDelete").addEventListener("click",function(){
+  confirmModal("Delete account?","Your ledger, streak and achievements will be erased on this device.","Delete",function(){
+    try{localStorage.removeItem("ryt-demo");localStorage.removeItem("ryt-onboarded")}catch(e){}
+    location.reload();
+  });
+});
+
+/* ================= banner / toast / clock ================= */
+var bannerTimer=null;
+function banner(t,s){
+  $("#bannerT").textContent=t;
+  $("#bannerS").textContent=s;
+  var b=$("#banner");
+  b.classList.add("show");
+  clearTimeout(bannerTimer);
+  bannerTimer=setTimeout(function(){b.classList.remove("show")},3800);
+}
+var toastTimer=null;
+function toast(msg){
+  var t=$("#toast");
+  t.textContent=msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){t.classList.remove("show")},2400);
+}
+(function(){
+  function clock(){
+    var n=new Date();
+    $("#clock").textContent=String(n.getHours()).padStart(2,"0")+":"+String(n.getMinutes()).padStart(2,"0");
+  }
+  clock();setInterval(clock,10000);
+})();
+
+render();
+setInterval(persist,5000);
+})();
+</script>
+</body>
+</html>

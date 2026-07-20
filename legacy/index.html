@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#050505">
+<meta name="description" content="RentYourTime turns screen time into a visible daily cost, helping you reclaim your attention.">
+<title>rentyourtime. — Your screen time now has rent.</title>
+<link rel="stylesheet" href="assets/base.css">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{--ink:#0B0B0B;--card:#161616;--signal:#00E676;--rent:#FF3B30;--sig-ink:#04140b}
+*{box-sizing:border-box}
+html{background:#050505;scroll-behavior:smooth}
+body{margin:0;background:var(--ink);color:#fff;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Helvetica,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.tnum{font-variant-numeric:tabular-nums}
+.dotg{color:var(--signal)}
+.wrap{max-width:1100px;margin:0 auto}
+/* nav */
+nav{display:flex;justify-content:space-between;align-items:center;padding:24px 48px;border-bottom:1px solid rgba(255,255,255,.06)}
+.logo{font-size:18px;font-weight:700;letter-spacing:-.02em}
+.navlinks{display:flex;gap:28px;align-items:center;font-size:14px;color:rgba(255,255,255,.6)}
+.navlinks a{color:inherit;text-decoration:none;transition:color .2s}
+.navlinks a:hover{color:#fff}
+.navlinks a.pill{color:var(--ink)}
+.navlinks a.pill:hover{color:var(--ink)}
+.pill{height:38px;padding:0 20px;border-radius:19px;background:#fff;color:var(--ink);font-weight:600;display:inline-flex;align-items:center;text-decoration:none;font-size:14px;transition:transform .18s cubic-bezier(.32,1.35,.4,1)}
+.pill:hover{transform:scale(1.03)}
+/* hero */
+.hero{display:flex;padding:72px 48px 64px;gap:48px;align-items:center}
+.hero-copy{flex:1;display:flex;flex-direction:column;gap:24px}
+.eyebrow{font-size:13px;font-weight:600;letter-spacing:.1em;color:var(--signal)}
+h1{margin:0;font-size:58px;font-weight:700;letter-spacing:-.035em;line-height:1.04}
+.sub{font-size:19px;line-height:1.55;color:rgba(255,255,255,.55);max-width:440px}
+.waitlist{display:flex;gap:10px;max-width:440px}
+.waitlist input{flex:1;height:54px;border-radius:27px;background:rgba(255,255,255,.07);border:0;padding:0 20px;font-size:15px;color:#fff;font-family:inherit;outline:none;min-width:0}
+.waitlist input::placeholder{color:rgba(255,255,255,.35)}
+.waitlist input:focus{background:rgba(255,255,255,.1)}
+.waitlist button{height:54px;padding:0 26px;border-radius:27px;background:var(--signal);color:var(--sig-ink);font-size:15px;font-weight:600;border:0;font-family:inherit;cursor:pointer;transition:transform .18s cubic-bezier(.32,1.35,.4,1);white-space:nowrap}
+.waitlist button:active{transform:scale(.97)}
+.waitlist button:disabled{cursor:wait;opacity:.7}
+.waitlist-status{min-height:20px;font-size:13px;color:rgba(255,255,255,.55);max-width:440px}
+.waitlist-status.success{color:var(--signal)}
+.waitlist-status.error{color:#ff8a84}
+.hp{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important}
+.count{font-size:13px;color:rgba(255,255,255,.4)}
+.count b{color:rgba(255,255,255,.6);font-weight:600}
+.demolink{font-size:15px}
+.demolink a{color:var(--signal);text-decoration:none;font-weight:500}
+.demolink a:hover{text-decoration:underline}
+/* phone card — live demo preview */
+.mock{flex:none;width:300px;background:var(--card);border-radius:36px;padding:24px;display:flex;flex-direction:column;gap:16px;box-shadow:0 40px 100px rgba(0,0,0,.6);cursor:pointer;transition:transform .3s cubic-bezier(.32,1.35,.4,1);text-decoration:none;color:#fff}
+.mock:hover{transform:translateY(-6px)}
+.mock .head{display:flex;justify-content:space-between;font-size:12px;color:rgba(255,255,255,.45)}
+.mock .head b{color:var(--signal);font-weight:600}
+.ring{align-self:center;width:150px;height:150px;border-radius:50%;background:conic-gradient(var(--signal) 0 91%,var(--rent) 91% 100%);display:flex;align-items:center;justify-content:center}
+.ring .hole{width:122px;height:122px;border-radius:50%;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .t{font-size:32px;font-weight:700}
+.ring .s{font-size:11px;color:var(--rent)}
+.mrow{background:var(--ink);border-radius:18px;padding:14px 16px;display:flex;justify-content:space-between;align-items:baseline}
+.mrow .k{font-size:13px;color:rgba(255,255,255,.5)}
+.mrow .v{font-size:22px;font-weight:700}
+.mrow .v.r{color:var(--rent)}
+.mrow .v.g{color:var(--signal)}
+.mock .cta{font-size:13px;font-weight:600;color:var(--signal);text-align:center;padding-top:2px}
+/* how it works */
+.how{padding:72px 48px;border-top:1px solid rgba(255,255,255,.06)}
+.how-head{max-width:600px;margin-bottom:36px}
+.how-head h2{margin:10px 0 12px;font-size:38px;letter-spacing:-.03em}
+.how-head p{margin:0;color:rgba(255,255,255,.5);font-size:17px;line-height:1.55}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.step{background:var(--card);border-radius:24px;padding:26px;min-height:210px}
+.step .n{color:var(--signal);font-size:13px;font-weight:700;letter-spacing:.08em}
+.step h3{margin:30px 0 10px;font-size:21px;letter-spacing:-.02em}
+.step p{margin:0;color:rgba(255,255,255,.5);font-size:15px;line-height:1.55}
+/* stats */
+.stats{display:flex;border-top:1px solid rgba(255,255,255,.06)}
+.stat{flex:1;padding:28px 48px;border-right:1px solid rgba(255,255,255,.06)}
+.stat:last-child{border-right:0}
+.stat .v{font-size:24px;font-weight:700}
+.stat .v.g{color:var(--signal)}
+.stat .k{font-size:13px;color:rgba(255,255,255,.5);margin-top:4px}
+footer{padding:32px 48px;border-top:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center;font-size:13px;color:rgba(255,255,255,.35)}
+footer a{color:var(--signal);text-decoration:none}
+@media (max-width:900px){
+  nav{padding:20px 24px}
+  .navlinks a:not(.pill){display:none}
+  .hero{flex-direction:column;padding:48px 24px;align-items:flex-start}
+  h1{font-size:42px}
+  .mock{align-self:center}
+  .how{padding:52px 24px}
+  .how-head h2{font-size:32px}
+  .steps{grid-template-columns:1fr}
+  .step{min-height:0}
+  .stats{flex-direction:column}
+  .stat{border-right:0;border-bottom:1px solid rgba(255,255,255,.06);padding:22px 24px}
+  footer{padding:24px;flex-direction:column;gap:10px}
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="wrap">
+  <nav aria-label="Primary navigation">
+    <span class="logo">rentyourtime<span class="dotg">.</span></span>
+    <div class="navlinks">
+      <a href="#how">How it works</a>
+      <a href="#how">Psychology</a>
+      <a href="pricing.html">Pricing</a>
+      <a class="pill" href="#waitlist-anchor">Join waitlist</a>
+    </div>
+  </nav>
+
+  <main id="main">
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="hero-copy">
+      <div class="eyebrow">iOS · COMING THIS FALL</div>
+      <h1 id="hero-title">Your screen time<br>now has rent<span class="dotg">.</span></h1>
+      <p class="sub" style="margin:0">3 free hours a day. After that, every minute generates a bill. Virtual — but you'll feel it. The average person avoids paying $61/month.</p>
+      <form class="waitlist" id="waitlist" aria-describedby="waitlist-status count">
+        <span id="waitlist-anchor"></span>
+        <input type="email" name="email" placeholder="you@email.com" aria-label="Email address" autocomplete="email" maxlength="254" required>
+        <label class="hp" aria-hidden="true">Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+        <button type="submit">Get early access</button>
+      </form>
+      <div class="waitlist-status" id="waitlist-status" role="status" aria-live="polite"></div>
+      <div class="count" id="count"><b class="tnum">4,218</b> on the waitlist · founders get 85% off forever</div>
+      <div class="demolink">Don't want to wait? <a href="app.html">Try the live demo →</a></div>
+    </div>
+    <a class="mock" href="app.html" title="Open the live demo">
+      <div class="head"><span>TODAY</span><b>12-day streak</b></div>
+      <div class="ring"><div class="hole"><div class="t tnum">3:18</div><div class="s">18m over</div></div></div>
+      <div class="mrow"><span class="k">Today's rent</span><span class="v r tnum">$2.70</span></div>
+      <div class="mrow"><span class="k">Avoided in July</span><span class="v g tnum">$84</span></div>
+      <div class="cta">▶ Try the live demo</div>
+    </a>
+  </section>
+
+  <section class="how" id="how">
+    <div class="how-head">
+      <div class="eyebrow">HOW IT WORKS</div>
+      <h2>A small price changes how you spend your time.</h2>
+      <p>RentYourTime turns abstract screen-time numbers into something you can immediately understand: a daily allowance and a visible cost.</p>
+    </div>
+    <div class="steps">
+      <article class="step">
+        <div class="n">01 · SET YOUR LIMIT</div>
+        <h3>Start with free time.</h3>
+        <p>Choose how much screen time you want each day. Your allowance is always free.</p>
+      </article>
+      <article class="step">
+        <div class="n">02 · WATCH THE METER</div>
+        <h3>See the real trade-off.</h3>
+        <p>After your allowance runs out, every extra minute adds virtual rent to your daily bill.</p>
+      </article>
+      <article class="step">
+        <div class="n">03 · RECLAIM YOUR DAY</div>
+        <h3>Make a conscious choice.</h3>
+        <p>Close the app, keep your streak alive, and see how much time and rent you avoided.</p>
+      </article>
+    </div>
+  </section>
+
+  <div class="stats">
+    <div class="stat"><div class="v g tnum">−38%</div><div class="k">screen time after 30 days</div></div>
+    <div class="stat"><div class="v tnum">9h 20m</div><div class="k">average time reclaimed weekly</div></div>
+    <div class="stat"><div class="v tnum">$61</div><div class="k">average rent avoided monthly</div></div>
+  </div>
+  </main>
+
+  <footer>
+    <span>Every minute costs<span class="dotg">.</span></span>
+    <a href="app.html">Open the app demo →</a>
+  </footer>
+</div>
+
+<script src="assets/site.js" type="module"></script>
+<script type="module">
+(function(){
+  var BASE=4218;
+  var serverCount=0;
+  var form=document.getElementById("waitlist");
+  var status=document.getElementById("waitlist-status");
+  var button=form.querySelector("button");
+  function renderCount(count){
+    serverCount=Math.max(0,Number(count)||0);
+    document.getElementById("count").innerHTML=
+      '<b class="tnum">'+(BASE+serverCount).toLocaleString("en-US")+'</b> on the waitlist · founders get 85% off forever';
+  }
+  function setStatus(message,type){
+    status.textContent=message;
+    status.className="waitlist-status"+(type?" "+type:"");
+  }
+  renderCount(0);
+  fetch("subscribe.php?count=1",{headers:{"Accept":"application/json"}})
+    .then(function(r){if(!r.ok)throw new Error("count");return r.json()})
+    .then(function(data){if(data.ok)renderCount(data.count)})
+    .catch(function(){/* The base count remains visible when the API is unavailable. */});
+  form.addEventListener("submit",function(e){
+    e.preventDefault();
+    var input=form.querySelector('input[name="email"]');
+    var email=(input.value||"").trim();
+    if(!email||!input.checkValidity()){
+      input.reportValidity();
+      return;
+    }
+    button.disabled=true;
+    button.textContent="Joining…";
+    setStatus("","");
+    fetch("subscribe.php",{
+      method:"POST",
+      headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8","Accept":"application/json"},
+      body:new URLSearchParams(new FormData(form)).toString()
+    })
+      .then(function(r){return r.json().catch(function(){throw new Error("response")}).then(function(data){if(!r.ok||!data.ok)throw new Error(data.error||"request");return data})})
+      .then(function(data){
+        renderCount(data.count);
+        input.value="";
+        setStatus(data.new===false?"You’re already on the list — see you this fall.":"You’re in! Check back this fall.","success");
+      })
+      .catch(function(){setStatus("We couldn’t save your email. Please try again in a moment.","error")})
+      .finally(function(){button.disabled=false;button.textContent="Get early access"});
+  });
+})();
+</script>
+</body>
+</html>
