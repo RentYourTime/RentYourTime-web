@@ -188,13 +188,17 @@ User=ubuntu
 WorkingDirectory=/var/www/rentyourtime
 Environment=NODE_ENV=production
 Environment=PORT=3000
-ExecStart=/usr/bin/npm run start
+ExecStart=/usr/bin/npm run start:web
 Restart=always
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+> Pod systemd używamy `start:web` (sama strona), **nie** `start` — bo `npm run start`
+> odpala też bota przez `concurrently`, a bota prowadzi osobna usługa (poniżej).
+> Jeden proces = jedna usługa.
 
 Włącz i wystartuj:
 

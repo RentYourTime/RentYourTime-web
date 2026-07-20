@@ -18,7 +18,14 @@ import {
   AttachmentBuilder,
   MessageFlags,
 } from "discord.js";
-import { addBetaTester, allBetaTesters, countBetaTesters, isValidEmail } from "./db.js";
+import {
+  addBetaTester,
+  allBetaTesters,
+  countBetaTesters,
+  getUnnotifiedWaitlist,
+  isValidEmail,
+  markWaitlistNotified,
+} from "./db.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
@@ -32,23 +39,46 @@ const OWNER_ID = process.env.DISCORD_OWNER_ID;
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-/** DM the configured owner about a new beta signup. Never throws. */
-async function notifyOwner(email, user) {
-  if (!OWNER_ID) return;
+/** DM the configured owner an embed. Returns true if sent. Never throws. */
+async function dmOwner(title, fields) {
+  if (!OWNER_ID) return false;
   try {
     const owner = await client.users.fetch(OWNER_ID);
-    const embed = new EmbedBuilder()
-      .setColor(SIGNAL)
-      .setTitle("\u{1F195} New beta signup")
-      .addFields(
-        { name: "Email", value: email },
-        { name: "From", value: `${user.username} (<@${user.id}>)` }
-      )
-      .setTimestamp();
+    const embed = new EmbedBuilder().setColor(SIGNAL).setTitle(title).addFields(fields).setTimestamp();
     await owner.send({ embeds: [embed] });
+    return true;
   } catch (err) {
     // Owner may have DMs closed or not share a server with the bot.
-    console.warn("Could not DM owner about new signup:", err.message);
+    console.warn("Could not DM owner:", err.message);
+    return false;
+  }
+}
+
+/** DM about a new beta signup (from the /beta or /register modal). */
+function notifyOwnerBeta(email, user) {
+  return dmOwner("\u{1F195} New beta signup", [
+    { name: "Email", value: email },
+    { name: "From", value: `${user.username} (<@${user.id}>)` },
+  ]);
+}
+
+/** Poll the website waitlist table and DM the owner about new signups. */
+async function pollWaitlist() {
+  if (!OWNER_ID) return;
+  let rows;
+  try {
+    rows = getUnnotifiedWaitlist();
+  } catch (err) {
+    console.warn("Waitlist poll failed:", err.message);
+    return;
+  }
+  for (const row of rows) {
+    await dmOwner("\u{1F195} New website signup", [
+      { name: "Email", value: row.email },
+      { name: "Source", value: "Website waitlist" },
+    ]);
+    // Best-effort: mark notified regardless, so a closed-DM owner isn't retried forever.
+    markWaitlistNotified(row.email);
   }
 }
 
@@ -74,6 +104,13 @@ function csvEscape(value) {
 
 client.once(Events.ClientReady, (c) => {
   console.log(`✓ Logged in as ${c.user.tag} — ${countBetaTesters()} beta testers so far`);
+  if (OWNER_ID) {
+    // Watch the website waitlist and DM the owner about new signups.
+    pollWaitlist();
+    setInterval(pollWaitlist, 20000);
+  } else {
+    console.warn("[bot] DISCORD_OWNER_ID not set — DM notifications disabled.");
+  }
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -161,7 +198,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           : "\u{1F44D} You’re already on the beta list — see you soon.",
         flags: MessageFlags.Ephemeral,
       });
-      if (added) await notifyOwner(email, interaction.user);
+      if (added) await notifyOwnerBeta(email, interaction.user);
       return;
     }
   } catch (err) {

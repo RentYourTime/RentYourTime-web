@@ -14,7 +14,13 @@ Both open the same private modal and reply **only to that user** (ephemeral).
 ## Get DMed about new signups
 
 Set `DISCORD_OWNER_ID` to your own Discord user ID and the bot will **DM you the
-email of every new person** the moment they sign up (duplicates don't notify).
+email of every new person** — both from the Discord `/beta` command **and from the
+website waitlist form**. Duplicates and pre-existing signups don't notify.
+
+The website form and the bot are separate processes; they share one SQLite
+database. The bot polls the `waitlist` table every ~20s and DMs you about rows it
+hasn't announced yet (tracked via a `notified` flag), so nothing is missed or sent twice.
+
 Enable Developer Mode → right-click your name → **Copy User ID**. You must share
 a server with the bot and allow DMs from server members. Leave it empty to disable.
 

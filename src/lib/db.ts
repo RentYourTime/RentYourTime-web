@@ -71,7 +71,8 @@ export function getDb(): Database.Database {
     CREATE TABLE IF NOT EXISTS waitlist (
       email TEXT PRIMARY KEY COLLATE NOCASE,
       created_at TEXT NOT NULL,
-      ip TEXT
+      ip TEXT,
+      notified INTEGER NOT NULL DEFAULT 0
     );
 
     -- Beta-tester emails collected by the Discord bot (see /bot).
@@ -82,6 +83,16 @@ export function getDb(): Database.Database {
       created_at TEXT NOT NULL
     );
   `);
+
+  // Migration: add waitlist.notified to older databases. Existing rows are
+  // backfilled as already-notified so the bot never DMs about historical signups.
+  const waitlistCols = (db.prepare("PRAGMA table_info(waitlist)").all() as { name: string }[]).map(
+    (c) => c.name
+  );
+  if (!waitlistCols.includes("notified")) {
+    db.exec("ALTER TABLE waitlist ADD COLUMN notified INTEGER NOT NULL DEFAULT 0");
+    db.exec("UPDATE waitlist SET notified = 1");
+  }
 
   // Opportunistic cleanup (~1% of connections), matching the PHP behaviour.
   if (Math.floor(Math.random() * 100) === 0) {

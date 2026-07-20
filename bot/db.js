@@ -30,8 +30,34 @@ export function getDb() {
       discord_username TEXT,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS waitlist (
+      email TEXT PRIMARY KEY COLLATE NOCASE,
+      created_at TEXT NOT NULL,
+      ip TEXT,
+      notified INTEGER NOT NULL DEFAULT 0
+    );
   `);
+
+  // Migration for databases whose waitlist table predates the `notified` column.
+  // Existing rows are marked notified so historical signups aren't DMed.
+  const cols = db.prepare("PRAGMA table_info(waitlist)").all().map((c) => c.name);
+  if (!cols.includes("notified")) {
+    db.exec("ALTER TABLE waitlist ADD COLUMN notified INTEGER NOT NULL DEFAULT 0");
+    db.exec("UPDATE waitlist SET notified = 1");
+  }
+
   return db;
+}
+
+/** Website waitlist signups the bot hasn't announced yet. */
+export function getUnnotifiedWaitlist() {
+  return getDb()
+    .prepare("SELECT email, created_at FROM waitlist WHERE notified = 0 ORDER BY created_at")
+    .all();
+}
+
+export function markWaitlistNotified(email) {
+  getDb().prepare("UPDATE waitlist SET notified = 1 WHERE email = ?").run(email);
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
