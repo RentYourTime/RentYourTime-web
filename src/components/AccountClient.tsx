@@ -25,6 +25,7 @@ export function AccountClient() {
   const [status, setStatus] = useState<{ text: string; error: boolean }>({ text: "", error: false });
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
+  const [plan, setPlan] = useState<"monthly" | "yearly">("yearly");
 
   const message = (text: string, error = false) => setStatus({ text, error });
 
@@ -94,7 +95,7 @@ export function AccountClient() {
     setBusy(true);
     message("");
     try {
-      const data = await api("checkout", { method: "POST", body: "{}" });
+      const data = await api("checkout", { method: "POST", body: JSON.stringify({ plan }) });
       window.location.href = data.checkout_url;
     } catch {
       message("Checkout is not configured yet. Check the server settings.", true);
@@ -218,14 +219,45 @@ export function AccountClient() {
                 </span>
               </div>
               {!account.pro && (
-                <button
-                  type="button"
-                  onClick={onCheckout}
-                  disabled={busy}
-                  className="h-[52px] w-full rounded-[26px] border-0 bg-signal text-[15px] font-bold text-sig-ink disabled:cursor-wait disabled:opacity-60"
-                >
-                  {busy ? "Please wait…" : "Continue to Stripe · $8.99/year"}
-                </button>
+                <>
+                  <div className="mb-3 grid grid-cols-2 gap-0 rounded-[22px] bg-[#0b0b0b] p-1">
+                    {(
+                      [
+                        { id: "monthly", label: "Monthly", price: "$8.99/mo" },
+                        { id: "yearly", label: "Yearly", price: "$89.99/yr" },
+                      ] as const
+                    ).map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setPlan(p.id)}
+                        className={`flex h-[46px] flex-col items-center justify-center rounded-[18px] border-0 leading-tight ${
+                          plan === p.id ? "bg-white/10 text-white" : "bg-transparent text-white/50"
+                        }`}
+                      >
+                        <span className="text-[13px] font-semibold">{p.label}</span>
+                        <span className="text-[12px] opacity-80">{p.price}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onCheckout}
+                    disabled={busy}
+                    className="h-[52px] w-full rounded-[26px] border-0 bg-signal text-[15px] font-bold text-sig-ink disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {busy
+                      ? "Please wait…"
+                      : plan === "monthly"
+                        ? "Continue to Stripe · $8.99/month"
+                        : "Continue to Stripe · $89.99/year"}
+                  </button>
+                  {plan === "yearly" && (
+                    <div className="mt-2 text-center text-[12px] text-signal">
+                      Save 17% vs monthly
+                    </div>
+                  )}
+                </>
               )}
               <button
                 type="button"

@@ -100,11 +100,14 @@ export default function PricingPage() {
           {/* Pro */}
           <article className="relative flex min-h-[510px] flex-col rounded-[28px] border border-signal/40 bg-card p-8 shadow-[0_30px_80px_rgba(0,0,0,0.34)] max-[720px]:min-h-0">
             <div className="absolute right-6 top-6 rounded-[20px] bg-signal/[0.12] px-2.5 py-[7px] text-[11px] font-bold tracking-[0.06em] text-signal">
-              FOUNDER PRICE
+              SAVE 17%
             </div>
             <h2 className="mb-[18px] text-[25px]">Pro</h2>
             <div className="text-[48px] font-[750] tracking-[-0.04em]">
-              $8.99<span className="text-[15px] font-medium tracking-normal text-white/50"> / year</span>
+              $8.99<span className="text-[15px] font-medium tracking-normal text-white/50"> / month</span>
+            </div>
+            <div className="mt-1.5 text-[15px] text-white/50">
+              or <b className="font-semibold text-white">$89.99</b> / year · save 17%
             </div>
             <p className="mb-7 mt-3.5 min-h-[46px] text-[15px] leading-[1.5] text-white/50">
               Advanced tools for building a healthier relationship with your phone.
@@ -130,7 +133,7 @@ export default function PricingPage() {
               Choose Pro
             </Link>
             <div className="mt-3 text-center text-xs text-white/35">
-              85% off forever for early members.
+              Billed monthly or yearly. Cancel anytime.
             </div>
           </article>
         </section>
