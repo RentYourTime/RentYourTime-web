@@ -358,6 +358,22 @@ sudo systemctl restart rentyourtime
 
 ---
 
+## 8b. Panel admina waitlisty i pierwszy ADMIN
+
+`/admin/waitlist` wymaga `role = 'ADMIN'` na koncie — nic nie nadaje tej roli
+automatycznie. Po zarejestrowaniu własnego konta na stronie, na serwerze:
+
+```bash
+cd /var/www/rentyourtime
+npm run admin:grant -- owner@example.com
+```
+
+(albo bezpośrednio SQL: `sqlite3 /var/lib/rentyourtime/rentyourtime.sqlite
+"UPDATE users SET role='ADMIN' WHERE email='owner@example.com';"`). Szczegóły
+i diagnostyka braku powiadomień o nowych zapisach: `docs/WAITLIST.md`.
+
+---
+
 ## 9. Aktualizacje (redeploy)
 
 ```bash
@@ -413,6 +429,7 @@ Dodaj (codziennie 3:00):
 - [ ] nginx z `X-Forwarded-For` + HTTPS przez certbot
 - [ ] webhook Stripe → `/api/webhook` + `STRIPE_WEBHOOK_SECRET`
 - [ ] AWS SES: domena zweryfikowana (DKIM/SPF/DMARC) + rola IAM lub klucze + `EMAIL_FROM`
+- [ ] pierwszy `ADMIN`: `npm run admin:grant -- <email>` po rejestracji konta
 - [ ] backupy (snapshot EBS + cron `.backup`)
 
 ## Diagnostyka
@@ -426,3 +443,5 @@ Dodaj (codziennie 3:00):
 | `Cannot find module './xxx.js'` | `rm -rf .next && npm run build && sudo systemctl restart rentyourtime` |
 | HTTPS nie działa | `sudo certbot certificates`, `sudo nginx -t`, rekord A + propagacja DNS |
 | Rejestracja działa, ale mail weryfikacyjny nie dochodzi | `journalctl -u rentyourtime -e` (szukaj "Verification email send failed"); czy `EMAIL_FROM` jest zweryfikowany w SES; czy konto SES nadal w Sandbox (wysyła tylko do zweryfikowanych adresów); czy rola IAM/klucze mają `ses:SendEmail` |
+| Zapis na waitlistę działa, ale właściciel nic nie dostaje | Pełna checklista (Discord + e-mail osobno): `docs/WAITLIST.md` |
+| `/admin/waitlist` przekierowuje do `/account` | Konto nie ma `role='ADMIN'` — `npm run admin:grant -- <email>` |

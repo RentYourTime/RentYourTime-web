@@ -20,6 +20,18 @@ website waitlist form**. Duplicates and pre-existing signups don't notify.
 The website form and the bot are separate processes; they share one SQLite
 database. The bot polls the `waitlist` table every ~20s and DMs you about rows it
 hasn't announced yet (tracked via a `notified` flag), so nothing is missed or sent twice.
+The DM includes the email, source, signup date, and running total
+(`bot/waitlist-notifier.js`).
+
+A row is only marked as announced once the DM **actually sends** — if your DMs are
+closed or the bot doesn't share a server with you, it keeps retrying on later polls
+(with a 5-minute cooldown per row, so it doesn't hammer Discord's API) instead of
+silently giving up. See `docs/WAITLIST.md` for the full diagnostic checklist if
+notifications stop arriving.
+
+The website also emails the owner directly (AWS SES) when `WAITLIST_NOTIFY_EMAIL`
+is set in the **main app's** `.env` — that's independent of this Discord path and
+documented in `docs/WAITLIST.md`, not here.
 
 Enable Developer Mode → right-click your name → **Copy User ID**. You must share
 a server with the bot and allow DMs from server members. Leave it empty to disable.

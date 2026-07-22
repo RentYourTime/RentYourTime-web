@@ -7,6 +7,8 @@ original PHP + static-HTML site.
 - **Interactive demo** — a full iOS-style product demo at `/demo`
 - **Customer panel** (`/account`) — account details, subscription status, billing
   history with hosted/PDF invoice links, and the Stripe Customer Portal
+- **Waitlist admin panel** (`/admin/waitlist`, `role = ADMIN` only) — signup stats,
+  search/filter, status tracking, notes, CSV export
 - **API** — waitlist, account auth (register / login / me / logout), Stripe
   subscription checkout + webhooks + billing history, and a subscription
   entitlement service that recognizes whether Pro was purchased through Stripe or
@@ -81,6 +83,9 @@ Run behind a reverse proxy (nginx/Caddy) terminating HTTPS and forwarding
 | POST   | `/api/billing/portal`             | Create a Stripe Customer Portal session     |
 | POST   | `/api/subscriptions/apple/sync`   | Apple sync — 501/503 today, see docs        |
 | POST   | `/api/webhooks/apple`             | Apple notifications — 501 today, see docs   |
+| GET    | `/api/admin/waitlist`             | List + stats (Bearer, `role=ADMIN`)         |
+| PATCH  | `/api/admin/waitlist/[id]`        | Update status/notes (Bearer, `role=ADMIN`)  |
+| GET    | `/api/admin/waitlist/export`      | CSV export (Bearer, `role=ADMIN`)           |
 
 Tokens are random, stored only as SHA-256 hashes, and expire after 30 days.
 `src/lib/subscriptions.ts` (driven by Stripe/Apple webhooks) is the single source of
@@ -91,7 +96,8 @@ trust `productId`/`expiresAt` sent by a client. Billing history
 [`docs/AUTH.md`](docs/AUTH.md), [`docs/SUBSCRIPTIONS.md`](docs/SUBSCRIPTIONS.md),
 [`docs/STRIPE.md`](docs/STRIPE.md), [`docs/BILLING_PORTAL.md`](docs/BILLING_PORTAL.md),
 [`docs/APPLE_SUBSCRIPTIONS.md`](docs/APPLE_SUBSCRIPTIONS.md),
-[`docs/EMAIL_VERIFICATION.md`](docs/EMAIL_VERIFICATION.md).
+[`docs/EMAIL_VERIFICATION.md`](docs/EMAIL_VERIFICATION.md),
+[`docs/WAITLIST.md`](docs/WAITLIST.md) (also covers granting the `ADMIN` role).
 
 ## Legacy
 

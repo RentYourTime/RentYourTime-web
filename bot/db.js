@@ -45,11 +45,25 @@ export function getDb() {
     db.exec("ALTER TABLE waitlist ADD COLUMN notified INTEGER NOT NULL DEFAULT 0");
     db.exec("UPDATE waitlist SET notified = 1");
   }
+  // The bot only ever writes `notified`/`updated_at` itself — the rest of the
+  // admin-panel columns (source, status, ...) are owned and migrated by the
+  // website (src/lib/db.ts); this table is shared, so those columns already
+  // exist by the time either process touches a real deployment's database.
+  if (!cols.includes("updated_at")) {
+    db.exec("ALTER TABLE waitlist ADD COLUMN updated_at TEXT");
+  }
 
   return db;
 }
 
-/** Website waitlist signups the bot hasn't announced yet. */
+/**
+ * Website waitlist signups the bot hasn't announced yet. Only selects
+ * columns the bot's own (minimal) CREATE TABLE guarantees exist, so this
+ * works even if the bot starts before the website has ever run its fuller
+ * migration (src/lib/db.ts) on a brand-new database. `source` isn't needed
+ * here: this table is only ever written to by the website's waitlist form,
+ * so every row the bot ever sees is a website signup by construction.
+ */
 export function getUnnotifiedWaitlist() {
   return getDb()
     .prepare("SELECT email, created_at FROM waitlist WHERE notified = 0 ORDER BY created_at")
@@ -57,7 +71,14 @@ export function getUnnotifiedWaitlist() {
 }
 
 export function markWaitlistNotified(email) {
-  getDb().prepare("UPDATE waitlist SET notified = 1 WHERE email = ?").run(email);
+  getDb()
+    .prepare("UPDATE waitlist SET notified = 1, updated_at = ? WHERE email = ?")
+    .run(new Date().toISOString(), email);
+}
+
+/** Total waitlist signups, for the "Total signups" line in the owner DM. */
+export function countWaitlist() {
+  return getDb().prepare("SELECT COUNT(*) AS n FROM waitlist").get().n;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

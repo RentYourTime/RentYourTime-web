@@ -22,10 +22,12 @@ import {
   addBetaTester,
   allBetaTesters,
   countBetaTesters,
+  countWaitlist,
   getUnnotifiedWaitlist,
   isValidEmail,
   markWaitlistNotified,
 } from "./db.js";
+import { createWaitlistNotifier } from "./waitlist-notifier.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
@@ -62,25 +64,19 @@ function notifyOwnerBeta(email, user) {
   ]);
 }
 
-/** Poll the website waitlist table and DM the owner about new signups. */
-async function pollWaitlist() {
-  if (!OWNER_ID) return;
-  let rows;
-  try {
-    rows = getUnnotifiedWaitlist();
-  } catch (err) {
-    console.warn("Waitlist poll failed:", err.message);
-    return;
-  }
-  for (const row of rows) {
-    await dmOwner("\u{1F195} New website signup", [
-      { name: "Email", value: row.email },
-      { name: "Source", value: "Website waitlist" },
-    ]);
-    // Best-effort: mark notified regardless, so a closed-DM owner isn't retried forever.
-    markWaitlistNotified(row.email);
-  }
-}
+/**
+ * Poll the website waitlist table and DM the owner about new signups. Only
+ * marks a row notified once the DM actually sends — a failed attempt (owner
+ * DMs closed, no shared server, etc.) is retried on a later poll instead of
+ * being silently dropped. See waitlist-notifier.js for the (unit-tested)
+ * logic; this just wires it to the real DB and Discord client.
+ */
+const pollWaitlist = createWaitlistNotifier({
+  getUnnotified: getUnnotifiedWaitlist,
+  markNotified: markWaitlistNotified,
+  countTotal: countWaitlist,
+  sendOwnerDm: (message) => dmOwner(message.title, message.fields),
+});
 
 /** Private modal asking the user for their email. */
 function emailModal() {

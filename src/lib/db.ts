@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 
@@ -150,6 +151,44 @@ export function getDb(): Database.Database {
     db.exec("ALTER TABLE waitlist ADD COLUMN notified INTEGER NOT NULL DEFAULT 0");
     db.exec("UPDATE waitlist SET notified = 1");
   }
+
+  // Migration: extend waitlist with admin-panel + notification-tracking
+  // columns. `email` remains the primary key (unchanged) — `id` is added as
+  // a plain, backfilled, uniquely-indexed column so admin routes have a
+  // stable identifier without rebuilding the table.
+  addColumnIfMissing(db, "waitlist", "id", "id TEXT");
+  addColumnIfMissing(db, "waitlist", "source", "source TEXT NOT NULL DEFAULT 'WEBSITE'");
+  addColumnIfMissing(db, "waitlist", "status", "status TEXT NOT NULL DEFAULT 'NEW'");
+  addColumnIfMissing(
+    db,
+    "waitlist",
+    "confirmation_sent",
+    "confirmation_sent INTEGER NOT NULL DEFAULT 0"
+  );
+  addColumnIfMissing(
+    db,
+    "waitlist",
+    "owner_email_notified",
+    "owner_email_notified INTEGER NOT NULL DEFAULT 0"
+  );
+  addColumnIfMissing(db, "waitlist", "user_agent", "user_agent TEXT");
+  addColumnIfMissing(db, "waitlist", "updated_at", "updated_at TEXT");
+  addColumnIfMissing(db, "waitlist", "contacted_at", "contacted_at TEXT");
+  addColumnIfMissing(db, "waitlist", "notes", "notes TEXT");
+
+  const waitlistMissingId = db
+    .prepare("SELECT email FROM waitlist WHERE id IS NULL")
+    .all() as { email: string }[];
+  if (waitlistMissingId.length > 0) {
+    const assignId = db.prepare("UPDATE waitlist SET id = ? WHERE email = ?");
+    for (const row of waitlistMissingId) {
+      assignId.run(randomBytes(12).toString("hex"), row.email);
+    }
+  }
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_waitlist_id ON waitlist(id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_waitlist_created_at ON waitlist(created_at)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_waitlist_status ON waitlist(status)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_waitlist_source ON waitlist(source)");
 
   // Migration: extend users/subscriptions with entitlement + Apple-readiness
   // columns on older databases. Additive only — no existing column is

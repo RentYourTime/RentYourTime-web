@@ -13,7 +13,8 @@
     "bot": "node bot/index.js",
     "bot:register": "node bot/register-commands.js",
     "lint": "next lint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "admin:grant": "node scripts/grant-admin.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-sesv2": "^3.1092.0",

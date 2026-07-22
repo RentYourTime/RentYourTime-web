@@ -151,6 +151,18 @@ export function revokeToken(token: string): void {
   getDb().prepare("DELETE FROM tokens WHERE token_hash = ?").run(sha256(token));
 }
 
+/**
+ * Gate for admin-only routes: 401 with no token, 403 for anyone whose role
+ * isn't `ADMIN`. `role` is only ever read from the `users` row via
+ * `currentUser()` — never accepted from the client.
+ */
+export function requireAdmin(req: Request): { user: UserRow } | { error: NextResponse } {
+  const user = currentUser(req);
+  if (!user) return { error: jsonError("unauthorized", 401) };
+  if (user.role !== "ADMIN") return { error: jsonError("forbidden", 403) };
+  return { user };
+}
+
 /** @deprecated Use `subscriptionGrantsPro` from `@/lib/subscriptions`. Kept as a thin re-export so nothing importing this from `auth.ts` breaks. */
 export const subscriptionIsPro = subscriptionGrantsPro;
 
