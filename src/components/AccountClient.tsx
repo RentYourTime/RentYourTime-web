@@ -7,6 +7,8 @@ import { AuthPanel, type AuthSubmitPayload } from "@/components/AuthPanel";
 import { AccountOverview, type OverviewUser, type ResendStatus } from "@/components/AccountOverview";
 import { SubscriptionCard, type SubscriptionData } from "@/components/SubscriptionCard";
 import { BillingHistory, type InvoicesState } from "@/components/BillingHistory";
+import { AccountTabs, type AccountTab } from "@/components/AccountTabs";
+import { AdminWaitlistPanel } from "@/components/AdminWaitlistPanel";
 
 const TOKEN_KEY = "ryt-auth-token";
 
@@ -37,6 +39,7 @@ export function AccountClient() {
   const [ready, setReady] = useState(false);
   const [plan, setPlan] = useState<"monthly" | "yearly">("yearly");
   const [resendStatus, setResendStatus] = useState<ResendStatus>("idle");
+  const [tab, setTab] = useState<AccountTab>("overview");
 
   const message = useCallback(
     (text: string, error = false) => setStatus({ text, error }),
@@ -84,6 +87,7 @@ export function AccountClient() {
         display_name: data.user.display_name,
         email_verified: !!data.user.email_verified,
         created_at: data.user.created_at,
+        role: data.user.role,
         subscription: data.user.subscription,
       });
       if (data.user.subscription?.is_pro) message("Pro is active on this account.");
@@ -179,10 +183,13 @@ export function AccountClient() {
     setToken("");
     setAccount(null);
     setInvoicesState({ status: "loading" });
+    setTab("overview");
     message("");
   }
 
   const statusColor = status.error ? "text-[#ff8a84]" : "text-white/50";
+  const isAdmin = account?.role === "ADMIN";
+  const showAdminTab = tab === "admin" && isAdmin;
 
   return (
     <div className="mx-auto max-w-[1100px]">
@@ -203,7 +210,9 @@ export function AccountClient() {
         id="main"
         className="flex justify-center px-6 py-[70px] max-[600px]:px-[18px] max-[600px]:py-9"
       >
-        <div className="flex w-full max-w-[560px] flex-col gap-5">
+        <div
+          className={`flex w-full flex-col gap-5 ${showAdminTab ? "max-w-[1100px]" : "max-w-[560px]"}`}
+        >
           {!account ? (
             <section className="rounded-[28px] border border-white/[0.08] bg-card p-8 max-[600px]:px-[22px] max-[600px]:py-[26px]">
               <AuthPanel
@@ -223,26 +232,35 @@ export function AccountClient() {
             </section>
           ) : (
             <>
-              <AccountOverview
-                user={account}
-                onLogout={onLogout}
-                onResendVerification={onResendVerification}
-                resendStatus={resendStatus}
-                busy={busy}
-              />
-              <SubscriptionCard
-                subscription={account.subscription}
-                plan={plan}
-                onPlanChange={setPlan}
-                onCheckout={onCheckout}
-                onManageSubscription={onManageSubscription}
-                busy={busy}
-              />
-              <BillingHistory
-                state={invoicesState}
-                refreshing={invoicesRefreshing}
-                onRefresh={() => loadInvoices(token)}
-              />
+              <AccountTabs tab={tab} onTabChange={setTab} showAdmin={isAdmin} />
+
+              {tab === "overview" && (
+                <AccountOverview
+                  user={account}
+                  onLogout={onLogout}
+                  onResendVerification={onResendVerification}
+                  resendStatus={resendStatus}
+                  busy={busy}
+                />
+              )}
+              {tab === "subscription" && (
+                <SubscriptionCard
+                  subscription={account.subscription}
+                  plan={plan}
+                  onPlanChange={setPlan}
+                  onCheckout={onCheckout}
+                  onManageSubscription={onManageSubscription}
+                  busy={busy}
+                />
+              )}
+              {tab === "billing" && (
+                <BillingHistory
+                  state={invoicesState}
+                  refreshing={invoicesRefreshing}
+                  onRefresh={() => loadInvoices(token)}
+                />
+              )}
+              {showAdminTab && <AdminWaitlistPanel token={token} />}
               <div
                 className={`text-center text-[13px] leading-[1.45] ${statusColor}`}
                 role="status"

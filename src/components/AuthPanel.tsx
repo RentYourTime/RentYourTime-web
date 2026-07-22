@@ -65,8 +65,13 @@ export function AuthPanel({
       <div
         role="tablist"
         aria-label="Choose account action"
-        className="mb-[22px] grid grid-cols-2 gap-0 rounded-[22px] bg-[#0b0b0b] p-1"
+        className="relative mb-[22px] grid grid-cols-2 gap-0 rounded-[22px] bg-[#0b0b0b] p-1"
       >
+        <span
+          aria-hidden="true"
+          className="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-[19px] bg-white/10 transition-transform duration-200 ease-spring motion-reduce:transition-none"
+          style={{ transform: mode === "login" ? "translateX(100%)" : "translateX(0%)" }}
+        />
         {(["register", "login"] as const).map((m) => (
           <button
             key={m}
@@ -77,8 +82,8 @@ export function AuthPanel({
               onModeChange(m);
               message("");
             }}
-            className={`h-[38px] rounded-[19px] border-0 text-sm font-semibold ${
-              mode === m ? "bg-white/10 text-white" : "bg-transparent text-white/50"
+            className={`relative z-10 h-[38px] rounded-[19px] border-0 bg-transparent text-sm font-semibold transition-colors ${
+              mode === m ? "text-white" : "text-white/50"
             }`}
           >
             {m === "register" ? "Create account" : "Sign in"}
@@ -86,8 +91,14 @@ export function AuthPanel({
         ))}
       </div>
       <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
-        {mode === "register" && (
-          <>
+        <div
+          className={`grid transition-[grid-template-rows,opacity] duration-300 ease-spring motion-reduce:transition-none ${
+            mode === "register" ? "opacity-100" : "opacity-0"
+          }`}
+          style={{ gridTemplateRows: mode === "register" ? "1fr" : "0fr" }}
+          inert={mode !== "register"}
+        >
+          <div className="flex flex-col gap-3 overflow-hidden">
             <label htmlFor="displayName" className="mx-1 -mb-1.5 text-xs text-white/50">
               Display name
             </label>
@@ -100,8 +111,8 @@ export function AuthPanel({
               placeholder="Optional"
               className="h-[50px] rounded-2xl border-0 bg-white/[0.07] px-4 text-[15px] text-white outline-none focus:shadow-[0_0_0_1px_var(--signal)]"
             />
-          </>
-        )}
+          </div>
+        </div>
         <label htmlFor="email" className="mx-1 -mb-1.5 text-xs text-white/50">
           Email
         </label>
@@ -129,8 +140,14 @@ export function AuthPanel({
           placeholder="At least 10 characters"
           className="h-[50px] rounded-2xl border-0 bg-white/[0.07] px-4 text-[15px] text-white outline-none focus:shadow-[0_0_0_1px_var(--signal)]"
         />
-        {mode === "register" && (
-          <>
+        <div
+          className={`grid transition-[grid-template-rows,opacity] duration-300 ease-spring motion-reduce:transition-none ${
+            mode === "register" ? "opacity-100" : "opacity-0"
+          }`}
+          style={{ gridTemplateRows: mode === "register" ? "1fr" : "0fr" }}
+          inert={mode !== "register"}
+        >
+          <div className="flex flex-col gap-3 overflow-hidden">
             <label htmlFor="confirmPassword" className="mx-1 -mb-1.5 text-xs text-white/50">
               Confirm password
             </label>
@@ -141,7 +158,7 @@ export function AuthPanel({
               autoComplete="new-password"
               minLength={10}
               maxLength={200}
-              required
+              required={mode === "register"}
               placeholder="Repeat your password"
               className="h-[50px] rounded-2xl border-0 bg-white/[0.07] px-4 text-[15px] text-white outline-none focus:shadow-[0_0_0_1px_var(--signal)]"
             />
@@ -150,7 +167,7 @@ export function AuthPanel({
                 id="acceptTos"
                 name="acceptTos"
                 type="checkbox"
-                required
+                required={mode === "register"}
                 className="mt-0.5 h-4 w-4 shrink-0 accent-signal"
               />
               <span>
@@ -162,15 +179,15 @@ export function AuthPanel({
                 id="acceptPrivacy"
                 name="acceptPrivacy"
                 type="checkbox"
-                required
+                required={mode === "register"}
                 className="mt-0.5 h-4 w-4 shrink-0 accent-signal"
               />
               <span>
                 I agree to the <b className="font-semibold text-white/70">Privacy Policy</b>
               </span>
             </label>
-          </>
-        )}
+          </div>
+        </div>
         <button
           type="submit"
           disabled={busy}

@@ -36,6 +36,12 @@ export function SiteNav({ active }: { active?: "how" | "pricing" }) {
           Pricing
         </Link>
         <Link
+          href="/account"
+          className="inline-flex h-[38px] items-center rounded-[19px] border border-white/15 px-5 text-sm font-semibold text-white no-underline transition-colors max-[900px]:hidden hover:bg-white/5"
+        >
+          Account
+        </Link>
+        <Link
           href="/#waitlist-anchor"
           className="inline-flex h-[38px] items-center rounded-[19px] bg-white px-5 text-sm font-semibold text-ink no-underline transition-transform duration-150 ease-spring hover:scale-[1.03]"
         >
