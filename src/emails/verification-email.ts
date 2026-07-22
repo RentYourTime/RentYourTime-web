@@ -21,6 +21,16 @@ const FONT_STACK = '-apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-s
 const SUBJECT = "Verify your RentYourTime account";
 const PREHEADER = "Confirm your email address to finish setting up your RentYourTime account.";
 
+// Small green "loading ring" mark next to the wordmark, inlined as a data
+// URI (no external asset request — some mail clients block those outright).
+// Single-quoted attributes throughout so it can sit inside a double-quoted
+// HTML src="" without breaking attribute parsing.
+const LOGO_ICON_SVG =
+  "<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18' fill='none'>" +
+  "<circle cx='9' cy='9' r='7' stroke='#00e676' stroke-width='2.4' stroke-linecap='round' stroke-dasharray='38 6'/>" +
+  "</svg>";
+const LOGO_ICON_DATA_URI = `data:image/svg+xml,${encodeURIComponent(LOGO_ICON_SVG)}`;
+
 export interface RenderVerificationEmailParams {
   verificationUrl: string;
   displayName?: string | null;
@@ -66,15 +76,22 @@ export function renderVerificationEmail({
         <td align="center" style="padding:40px 16px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:620px;">
             <tr>
-              <td align="center" style="padding-bottom:28px;">
-                <span style="font-family:${FONT_STACK}; font-size:18px; font-weight:700; color:${COLORS.text};">
-                  rentyourtime<span style="color:${COLORS.green};">.</span>
-                </span>
-              </td>
-            </tr>
-            <tr>
               <td style="background-color:${COLORS.card}; border:1px solid ${COLORS.cardBorder}; border-radius:28px; padding:40px 36px;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="padding-bottom:24px;">
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                          <td style="padding-right:8px; vertical-align:middle;">
+                            <img src="${LOGO_ICON_DATA_URI}" width="18" height="18" alt="" style="display:block; border:0;" />
+                          </td>
+                          <td style="vertical-align:middle; font-family:${FONT_STACK}; font-size:16px; font-weight:700; color:${COLORS.text};">
+                            rentyourtime<span style="color:${COLORS.green};">.</span>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
                   <tr>
                     <td style="font-family:${FONT_STACK}; font-size:12px; font-weight:700; letter-spacing:0.1em; color:${COLORS.green};">
                       VERIFY ACCOUNT
@@ -106,21 +123,11 @@ export function renderVerificationEmail({
                     </td>
                   </tr>
                   <tr>
-                    <td style="padding-top:20px; font-family:${FONT_STACK}; font-size:13px; line-height:1.5; color:${COLORS.textMuted};">
-                      This link is valid for 24 hours. After that you'll need to request a new one.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding-top:24px; border-top:1px solid ${COLORS.cardBorder}; padding-bottom:0;">
+                    <td style="padding-top:24px;">
                       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                         <tr>
-                          <td style="padding-top:20px; font-family:${FONT_STACK}; font-size:13px; line-height:1.5; color:${COLORS.textMuted};">
-                            Button not working? Copy this link into your browser:
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="padding-top:8px; font-family:${FONT_STACK}; font-size:13px; line-height:1.5; word-break:break-all;">
-                            <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" style="color:${COLORS.green}; text-decoration:underline;">${safeUrl}</a>
+                          <td style="background-color:rgba(255,255,255,0.04); border-radius:16px; padding:14px 18px; font-family:${FONT_STACK}; font-size:13px; line-height:1.5; color:${COLORS.textSecondary};">
+                            &#9203; This link is valid for <b style="color:${COLORS.text};">24 hours</b>. After that you'll need to request a new one.
                           </td>
                         </tr>
                       </table>
@@ -128,8 +135,24 @@ export function renderVerificationEmail({
                   </tr>
                   <tr>
                     <td style="padding-top:24px; font-family:${FONT_STACK}; font-size:13px; line-height:1.5; color:${COLORS.textMuted};">
-                      Didn't create a RentYourTime account? You can safely ignore this email —
-                      nothing happens without your click.
+                      Button not working? Copy this link into your browser:
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding-top:8px; font-family:${FONT_STACK}; font-size:13px; line-height:1.5; word-break:break-all;">
+                      <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" style="color:${COLORS.green}; text-decoration:underline;">${safeUrl}</a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding-top:24px; border-top:1px solid ${COLORS.cardBorder};">
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                          <td style="padding-top:20px; font-family:${FONT_STACK}; font-size:13px; line-height:1.5; color:${COLORS.textMuted};">
+                            Didn't create a RentYourTime account? You can safely ignore this email —
+                            nothing happens without your click.
+                          </td>
+                        </tr>
+                      </table>
                     </td>
                   </tr>
                 </table>
