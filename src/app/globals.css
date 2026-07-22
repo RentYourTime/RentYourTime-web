@@ -59,6 +59,19 @@
   .tnum {
     font-variant-numeric: tabular-nums;
   }
+  .link-underline {
+    background-image: linear-gradient(var(--signal), var(--signal));
+    background-repeat: no-repeat;
+    background-position: left 100%;
+    background-size: 0% 1.5px;
+    transition:
+      background-size 0.3s var(--spring),
+      color 0.2s ease;
+    padding-bottom: 2px;
+  }
+  .link-underline:hover {
+    background-size: 100% 1.5px;
+  }
   .skip-link {
     position: fixed;
     z-index: 999;

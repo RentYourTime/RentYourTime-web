@@ -9,6 +9,9 @@ import { SubscriptionCard, type SubscriptionData } from "@/components/Subscripti
 import { BillingHistory, type InvoicesState } from "@/components/BillingHistory";
 import { AccountTabs, type AccountTab } from "@/components/AccountTabs";
 import { AdminWaitlistPanel } from "@/components/AdminWaitlistPanel";
+import { Reveal } from "@/components/motion/Reveal";
+import { GlowLayer } from "@/components/motion/GlowLayer";
+import { ScrollProgressBar } from "@/components/motion/ScrollProgressBar";
 
 const TOKEN_KEY = "ryt-auth-token";
 
@@ -192,89 +195,113 @@ export function AccountClient() {
   const showAdminTab = tab === "admin" && isAdmin;
 
   return (
-    <div className="mx-auto max-w-[1100px]">
-      <a className="skip-link" href="#main">
-        Skip to content
-      </a>
-      <nav
-        aria-label="Account navigation"
-        className="flex h-[87px] items-center justify-between border-b border-white/[0.06] px-6 max-[600px]:h-[70px] sm:px-12"
-      >
-        <Wordmark href="/" />
-        <Link href="/pricing" className="text-sm text-white/50 no-underline">
-          ← Back to pricing
-        </Link>
-      </nav>
+    <div className="relative [overflow-x:clip]">
+      <GlowLayer
+        blobs={[
+          { top: "-120px", left: "50%", marginLeft: "-240px", size: "460px", rgb: "0,230,118", opacity: 0.12 },
+        ]}
+      />
+      <ScrollProgressBar />
 
-      <main
-        id="main"
-        className="flex justify-center px-6 py-[70px] max-[600px]:px-[18px] max-[600px]:py-9"
-      >
-        <div
-          className={`flex w-full flex-col gap-5 ${showAdminTab ? "max-w-[1100px]" : "max-w-[560px]"}`}
+      <div className="relative z-10 mx-auto max-w-[1100px]">
+        <a className="skip-link" href="#main">
+          Skip to content
+        </a>
+        <nav
+          aria-label="Account navigation"
+          className="flex h-[87px] items-center justify-between border-b border-white/[0.06] px-6 max-[600px]:h-[70px] sm:px-12"
         >
-          {!account ? (
-            <section className="rounded-[28px] border border-white/[0.08] bg-card p-8 max-[600px]:px-[22px] max-[600px]:py-[26px]">
-              <AuthPanel
-                mode={mode}
-                onModeChange={setMode}
-                onSubmit={onAuthSubmit}
-                busy={busy}
-                message={message}
-              />
-              <div
-                className={`mt-3.5 min-h-5 text-[13px] leading-[1.45] ${statusColor}`}
-                role="status"
-                aria-live="polite"
-              >
-                {ready ? status.text : ""}
-              </div>
-            </section>
-          ) : (
-            <>
-              <AccountTabs tab={tab} onTabChange={setTab} showAdmin={isAdmin} />
+          <Wordmark href="/" />
+          <Link href="/pricing" className="text-sm text-white/50 no-underline">
+            ← Back to pricing
+          </Link>
+        </nav>
 
-              {tab === "overview" && (
-                <AccountOverview
-                  user={account}
-                  onLogout={onLogout}
-                  onResendVerification={onResendVerification}
-                  resendStatus={resendStatus}
-                  busy={busy}
-                />
-              )}
-              {tab === "subscription" && (
-                <SubscriptionCard
-                  subscription={account.subscription}
-                  plan={plan}
-                  onPlanChange={setPlan}
-                  onCheckout={onCheckout}
-                  onManageSubscription={onManageSubscription}
-                  busy={busy}
-                />
-              )}
-              {tab === "billing" && (
-                <BillingHistory
-                  state={invoicesState}
-                  refreshing={invoicesRefreshing}
-                  onRefresh={() => loadInvoices(token)}
-                />
-              )}
-              {showAdminTab && <AdminWaitlistPanel token={token} />}
-              <div
-                className={`text-center text-[13px] leading-[1.45] ${statusColor}`}
-                role="status"
-                aria-live="polite"
+        <main
+          id="main"
+          className="flex justify-center px-6 py-[70px] max-[600px]:px-[18px] max-[600px]:py-9"
+        >
+          <div
+            className={`flex w-full flex-col gap-5 ${showAdminTab ? "max-w-[1100px]" : "max-w-[560px]"}`}
+          >
+            {!account ? (
+              <Reveal
+                delayMs={0}
+                className="rounded-[28px] border border-white/[0.08] bg-card p-8 max-[600px]:px-[22px] max-[600px]:py-[26px]"
               >
-                {status.text}
-              </div>
-            </>
-          )}
-          <div className="text-center text-[11px] text-white/30">
-            Subscriptions are confirmed by the payment provider before Pro is activated.
+                <AuthPanel
+                  mode={mode}
+                  onModeChange={setMode}
+                  onSubmit={onAuthSubmit}
+                  busy={busy}
+                  message={message}
+                />
+                <div
+                  className={`mt-3.5 min-h-5 text-[13px] leading-[1.45] ${statusColor}`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {ready ? status.text : ""}
+                </div>
+              </Reveal>
+            ) : (
+              <>
+                <Reveal delayMs={0}>
+                  <AccountTabs tab={tab} onTabChange={setTab} showAdmin={isAdmin} />
+                </Reveal>
+
+                {tab === "overview" && (
+                  <Reveal key="overview" delayMs={68}>
+                    <AccountOverview
+                      user={account}
+                      onLogout={onLogout}
+                      onResendVerification={onResendVerification}
+                      resendStatus={resendStatus}
+                      busy={busy}
+                    />
+                  </Reveal>
+                )}
+                {tab === "subscription" && (
+                  <Reveal key="subscription" delayMs={68}>
+                    <SubscriptionCard
+                      subscription={account.subscription}
+                      plan={plan}
+                      onPlanChange={setPlan}
+                      onCheckout={onCheckout}
+                      onManageSubscription={onManageSubscription}
+                      busy={busy}
+                    />
+                  </Reveal>
+                )}
+                {tab === "billing" && (
+                  <Reveal key="billing" delayMs={68}>
+                    <BillingHistory
+                      state={invoicesState}
+                      refreshing={invoicesRefreshing}
+                      onRefresh={() => loadInvoices(token)}
+                    />
+                  </Reveal>
+                )}
+                {showAdminTab && (
+                  <Reveal key="admin" delayMs={68}>
+                    <AdminWaitlistPanel token={token} />
+                  </Reveal>
+                )}
+                <div
+                  className={`text-center text-[13px] leading-[1.45] ${statusColor}`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {status.text}
+                </div>
+              </>
+            )}
+            <div className="text-center text-[11px] text-white/30">
+              Subscriptions are confirmed by the payment provider before Pro is activated.
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

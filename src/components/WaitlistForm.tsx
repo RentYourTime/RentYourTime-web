@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { CountUp } from "@/components/motion/CountUp";
 
 const BASE_COUNT = 4218;
 
@@ -70,7 +71,7 @@ export function WaitlistForm() {
     }
   }
 
-  const total = (BASE_COUNT + serverCount).toLocaleString("en-US");
+  const total = BASE_COUNT + serverCount;
   const statusColor =
     status.type === "success"
       ? "text-signal"
@@ -109,8 +110,8 @@ export function WaitlistForm() {
         {status.text}
       </div>
       <div className="text-[13px] text-white/40">
-        <b className="tnum font-semibold text-white/60">{total}</b> on the waitlist · founders get
-        85% off forever
+        <CountUp target={total} className="tnum font-semibold text-white/60" /> on the waitlist ·
+        founders get 85% off forever
       </div>
     </>
   );

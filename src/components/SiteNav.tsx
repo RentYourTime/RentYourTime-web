@@ -12,7 +12,7 @@ export function Wordmark({ href = "/" }: { href?: string }) {
  * Primary marketing navigation. `active` highlights the matching link.
  */
 export function SiteNav({ active }: { active?: "how" | "pricing" }) {
-  const linkBase = "text-inherit no-underline transition-colors hover:text-white";
+  const linkBase = "link-underline text-inherit no-underline transition-colors hover:text-white";
   return (
     <nav
       aria-label="Primary navigation"
