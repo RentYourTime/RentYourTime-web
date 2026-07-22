@@ -1,8 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getDb } from "./db";
+import { subscriptionGrantsPro, type SubscriptionRow } from "./subscriptions";
 
 export const API_TOKEN_DAYS = 30;
+export const MAX_JSON_BODY_BYTES = 16 * 1024;
 
 export interface UserRow {
   id: string;
@@ -10,16 +12,17 @@ export interface UserRow {
   password_hash: string;
   stripe_customer_id: string | null;
   created_at: string;
+  display_name: string | null;
+  email_verified: number;
+  is_active: number;
+  role: string;
+  last_login_at: string | null;
+  updated_at: string | null;
+  apple_original_transaction_id: string | null;
+  apple_account_token: string | null;
 }
 
-export interface SubscriptionRow {
-  user_id: string;
-  stripe_subscription_id: string | null;
-  status: string;
-  current_period_end: number | null;
-  last_event_created: number;
-  updated_at: string;
-}
+export type { SubscriptionRow };
 
 /** JSON response with the no-store / nosniff headers the API guarantees. */
 export function json(data: unknown, status = 200): NextResponse {
@@ -47,16 +50,18 @@ function clientIp(req: Request): string {
 }
 
 /**
- * Per-IP, per-action rate limiter. Returns a 429 response when the caller has
- * exhausted its budget, or null when the request may proceed.
+ * Per-IP (or, with `keyOverride`, per-arbitrary-key — e.g. per-user)
+ * rate limiter. Returns a 429 response when the caller has exhausted its
+ * budget, or null when the request may proceed.
  */
 export function rateLimit(
   req: Request,
   action: string,
   maxAttempts: number,
-  windowSeconds: number
+  windowSeconds: number,
+  keyOverride?: string
 ): NextResponse | null {
-  const bucket = sha256(`${action}:${clientIp(req)}`);
+  const bucket = sha256(`${action}:${keyOverride ?? clientIp(req)}`);
   const now = Math.floor(Date.now() / 1000);
   const db = getDb();
 
@@ -90,6 +95,32 @@ export function bearerToken(req: Request): string | null {
   return match ? match[1]!.trim() : null;
 }
 
+/**
+ * Reads and parses a JSON request body, enforcing Content-Type and a size
+ * cap so a caller can't send an oversized or mistyped payload. Returns
+ * either the parsed body or a ready-to-return error response.
+ */
+export async function readJsonBody<T>(
+  req: Request,
+  maxBytes = MAX_JSON_BODY_BYTES
+): Promise<{ body: T } | { error: NextResponse }> {
+  const contentType = req.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    return { error: jsonError("unsupported_content_type", 415) };
+  }
+
+  const text = await req.text();
+  if (Buffer.byteLength(text, "utf8") > maxBytes) {
+    return { error: jsonError("payload_too_large", 413) };
+  }
+
+  try {
+    return { body: (text ? JSON.parse(text) : {}) as T };
+  } catch {
+    return { error: jsonError("invalid_json", 400) };
+  }
+}
+
 export function issueToken(userId: string): { token: string; expires_at: string } {
   const token = randomBytes(32).toString("hex");
   const expires = new Date(Date.now() + API_TOKEN_DAYS * 86400 * 1000).toISOString();
@@ -99,14 +130,18 @@ export function issueToken(userId: string): { token: string; expires_at: string 
   return { token, expires_at: expires };
 }
 
-/** Resolve the authenticated user from the Bearer token, or null. */
+/**
+ * Resolve the authenticated user from the Bearer token, or null. Deactivated
+ * accounts (`is_active = 0`) are rejected here too, not just at login, so a
+ * deactivation takes effect immediately for any already-issued token.
+ */
 export function currentUser(req: Request): UserRow | null {
   const token = bearerToken(req);
   if (!token) return null;
   const user = getDb()
     .prepare(
       `SELECT u.* FROM tokens t JOIN users u ON u.id = t.user_id
-       WHERE t.token_hash = ? AND t.expires_at > ?`
+       WHERE t.token_hash = ? AND t.expires_at > ? AND u.is_active = 1`
     )
     .get(sha256(token), new Date().toISOString()) as UserRow | undefined;
   return user ?? null;
@@ -116,11 +151,7 @@ export function revokeToken(token: string): void {
   getDb().prepare("DELETE FROM tokens WHERE token_hash = ?").run(sha256(token));
 }
 
-export function subscriptionIsPro(sub: SubscriptionRow | null | undefined): boolean {
-  if (!sub) return false;
-  if (!["active", "trialing"].includes(sub.status)) return false;
-  const end = sub.current_period_end ?? 0;
-  return end === 0 || end > Math.floor(Date.now() / 1000);
-}
+/** @deprecated Use `subscriptionGrantsPro` from `@/lib/subscriptions`. Kept as a thin re-export so nothing importing this from `auth.ts` breaks. */
+export const subscriptionIsPro = subscriptionGrantsPro;
 
 export { sha256 };

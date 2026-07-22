@@ -9,13 +9,43 @@ const TOKEN_KEY = "ryt-auth-token";
 const ERROR_MAP: Record<string, string> = {
   email_taken: "This email already has an account.",
   invalid_credentials: "Incorrect email or password.",
-  invalid_password: "Use at least 10 characters.",
+  invalid_password: "Use at least 10 characters, with an uppercase letter, a lowercase letter, and a number.",
   invalid_email: "Enter a valid email address.",
 };
 
+const SOURCE_LABELS: Record<string, string> = {
+  STRIPE: "Stripe",
+  APPLE: "App Store",
+  MANUAL: "Manual",
+  NONE: "—",
+};
+
+const PLAN_LABELS: Record<string, string> = {
+  MONTHLY: "Monthly",
+  YEARLY: "Yearly",
+  UNKNOWN: "—",
+};
+
+function formatDate(epochSeconds: number): string {
+  return new Date(epochSeconds * 1000).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+interface SubscriptionData {
+  is_pro: boolean;
+  source: "STRIPE" | "APPLE" | "MANUAL" | "NONE";
+  status: string;
+  plan: "MONTHLY" | "YEARLY" | "UNKNOWN";
+  current_period_end: number | null;
+  auto_renew: boolean;
+}
+
 interface AccountData {
   email: string;
-  pro: boolean;
+  subscription: SubscriptionData;
 }
 
 export function AccountClient() {
@@ -48,8 +78,9 @@ export function AccountClient() {
   const loadAccount = useCallback(
     async (activeToken: string) => {
       const data = await api("me", { auth: activeToken });
-      setAccount({ email: data.user.email, pro: !!data.entitlements?.pro });
-      if (data.entitlements?.pro) message("Pro is active on this account.");
+      const subscription: SubscriptionData = data.user.subscription;
+      setAccount({ email: data.user.email, subscription });
+      if (subscription.is_pro) message("Pro is active on this account.");
     },
     [api]
   );
@@ -79,7 +110,7 @@ export function AccountClient() {
     message("");
     try {
       const auth = await api(mode, { method: "POST", body: JSON.stringify({ email, password }) });
-      const newToken = auth.auth.token as string;
+      const newToken = auth.token as string;
       sessionStorage.setItem(TOKEN_KEY, newToken);
       setToken(newToken);
       await loadAccount(newToken);
@@ -215,10 +246,23 @@ export function AccountClient() {
               <div className="mb-5 border-b border-white/[0.08] pb-6 pt-4">
                 <b className="block">{account.email}</b>
                 <span className="mt-[5px] block text-[13px] text-white/50">
-                  Current plan: {account.pro ? "Pro" : "Free"}
+                  Current plan: {account.subscription.is_pro ? "Pro" : "Free"}
                 </span>
+                {account.subscription.is_pro && (
+                  <span className="mt-1 block text-[13px] text-white/50">
+                    {SOURCE_LABELS[account.subscription.source]} ·{" "}
+                    {PLAN_LABELS[account.subscription.plan]}
+                    {account.subscription.current_period_end && (
+                      <>
+                        {" "}
+                        · {account.subscription.auto_renew ? "renews" : "ends"}{" "}
+                        {formatDate(account.subscription.current_period_end)}
+                      </>
+                    )}
+                  </span>
+                )}
               </div>
-              {!account.pro && (
+              {!account.subscription.is_pro && (
                 <>
                   <div className="mb-3 grid grid-cols-2 gap-0 rounded-[22px] bg-[#0b0b0b] p-1">
                     {(

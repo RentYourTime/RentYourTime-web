@@ -165,6 +165,10 @@ sudo chown ubuntu:ubuntu /var/lib/rentyourtime
 > `APP_URL` **musi** być docelowym adresem https — używa go Stripe do przekierowań
 > po płatności oraz metadane strony.
 
+> `APPLE_*` (opcjonalne, `docs/APPLE_SUBSCRIPTIONS.md`) — integracja Apple to na
+> razie tylko szkielet bez realnej weryfikacji, więc te zmienne nie są wymagane do
+> wdrożenia. Bez nich `/api/subscriptions/apple/sync` po prostu zwraca 503.
+
 ---
 
 ## 6. Uruchom jako usługa systemd
@@ -288,6 +292,12 @@ odnawianie. Sprawdź: `https://rentyourtime.pl`.
    - `customer.subscription.created`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
+   - `invoice.paid`
+   - `invoice.payment_failed`
+   - `charge.refunded`
+   > Jeśli endpoint już istnieje w Stripe Dashboard z tylko pierwszymi czterema
+   > eventami, dopisz brakujące trzy do **tego samego** endpointu — nie twórz
+   > drugiego. Szczegóły mapowania pól: `docs/STRIPE.md`.
 4. Zapisz i skopiuj **Signing secret** (`whsec_...`).
 5. Wklej go do `.env` jako `STRIPE_WEBHOOK_SECRET` i zrestartuj:
 
@@ -308,6 +318,7 @@ sudo systemctl restart rentyourtime
 cd /var/www/rentyourtime
 git pull
 npm ci
+npm test          # opcjonalnie, ale tania kontrola przed restartem produkcji
 npm run build
 sudo systemctl restart rentyourtime
 ```

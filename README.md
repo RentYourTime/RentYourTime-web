@@ -5,8 +5,9 @@ original PHP + static-HTML site.
 
 - **Marketing** — landing (`/`), pricing (`/pricing`), account (`/account`)
 - **Interactive demo** — a full iOS-style product demo at `/demo`
-- **API** — waitlist, account auth (register / login / me / logout) and Stripe
-  subscription checkout + webhooks, backed by SQLite
+- **API** — waitlist, account auth (register / login / me / logout), Stripe
+  subscription checkout + webhooks, and a subscription entitlement service that
+  recognizes whether Pro was purchased through Stripe or Apple — backed by SQLite
 
 ## Stack
 
@@ -27,13 +28,16 @@ original PHP + static-HTML site.
 npm install
 cp .env.example .env   # fill in your values
 npm run dev            # http://localhost:3000
+npm test                # run the test suite (vitest, isolated temp SQLite DBs)
 ```
 
 ### Environment
 
 See `.env.example`. Stripe checkout/webhooks require `STRIPE_SECRET_KEY`,
 `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` and `APP_URL`. The waitlist and demo
-work without them.
+work without them. `APPLE_*` vars are optional — see
+[`docs/APPLE_SUBSCRIPTIONS.md`](docs/APPLE_SUBSCRIPTIONS.md); the Apple sync
+endpoint responds 503/501 without them, it never fails silently.
 
 The SQLite database is created automatically in `./.data`
 (override with `DATA_DIR`). This directory is git-ignored — back it up.
@@ -47,29 +51,31 @@ npm run start   # serves on PORT (default 3000)
 
 Run behind a reverse proxy (nginx/Caddy) terminating HTTPS and forwarding
 `X-Forwarded-For` (used for per-IP rate limiting). Point the Stripe webhook at
-`https://your-domain/api/webhook` and subscribe to:
-
-- `checkout.session.completed`
-- `customer.subscription.created`
-- `customer.subscription.updated`
-- `customer.subscription.deleted`
+`https://your-domain/api/webhook` and subscribe to the events listed in
+[`docs/STRIPE.md`](docs/STRIPE.md).
 
 ## API
 
-| Method | Route            | Purpose                                  |
-| ------ | ---------------- | ---------------------------------------- |
-| GET    | `/api/waitlist`  | Current signup count                     |
-| POST   | `/api/waitlist`  | Join the waitlist (honeypot-protected)   |
-| POST   | `/api/register`  | Create an account → returns bearer token |
-| POST   | `/api/login`     | Sign in → returns bearer token           |
-| GET    | `/api/me`        | Account + Pro entitlement (Bearer)       |
-| POST   | `/api/checkout`  | Create a Stripe Checkout session (Bearer)|
-| POST   | `/api/logout`    | Revoke the current token (Bearer)        |
-| POST   | `/api/webhook`   | Stripe webhook receiver                  |
+| Method | Route                            | Purpose                                    |
+| ------ | --------------------------------- | ------------------------------------------- |
+| GET    | `/api/waitlist`                   | Current signup count                        |
+| POST   | `/api/waitlist`                   | Join the waitlist (honeypot-protected)      |
+| POST   | `/api/register`                   | Create an account → returns bearer token    |
+| POST   | `/api/login`                      | Sign in → returns bearer token              |
+| GET    | `/api/me`                         | Account + subscription entitlement (Bearer) |
+| POST   | `/api/logout`                     | Revoke the current token (Bearer)           |
+| GET    | `/api/subscriptions/status`       | Subscription entitlement only (Bearer)      |
+| POST   | `/api/checkout`                   | Create a Stripe Checkout session (Bearer)   |
+| POST   | `/api/webhook`                    | Stripe webhook receiver                     |
+| POST   | `/api/subscriptions/apple/sync`   | Apple sync — 501/503 today, see docs        |
+| POST   | `/api/webhooks/apple`             | Apple notifications — 501 today, see docs   |
 
 Tokens are random, stored only as SHA-256 hashes, and expire after 30 days.
-`entitlements.pro` (driven by Stripe webhooks) is the source of truth for Pro —
-never grant Pro from a `?checkout=success` redirect alone.
+`src/lib/subscriptions.ts` (driven by Stripe/Apple webhooks) is the single source of
+truth for Pro — never grant Pro from a `?checkout=success` redirect alone, and never
+trust `productId`/`expiresAt` sent by a client. Details: [`docs/AUTH.md`](docs/AUTH.md),
+[`docs/SUBSCRIPTIONS.md`](docs/SUBSCRIPTIONS.md), [`docs/STRIPE.md`](docs/STRIPE.md),
+[`docs/APPLE_SUBSCRIPTIONS.md`](docs/APPLE_SUBSCRIPTIONS.md).
 
 ## Legacy
 

@@ -13,6 +13,21 @@ import path from "node:path";
 
 let db: Database.Database | null = null;
 
+/** Add a column to an existing table if it isn't already there. Idempotent. */
+function addColumnIfMissing(
+  conn: Database.Database,
+  table: string,
+  column: string,
+  definition: string
+): void {
+  const cols = (conn.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(
+    (c) => c.name
+  );
+  if (!cols.includes(column)) {
+    conn.exec(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
+  }
+}
+
 function dataDir(): string {
   const dir = process.env.DATA_DIR
     ? path.resolve(process.env.DATA_DIR)
@@ -93,6 +108,66 @@ export function getDb(): Database.Database {
     db.exec("ALTER TABLE waitlist ADD COLUMN notified INTEGER NOT NULL DEFAULT 0");
     db.exec("UPDATE waitlist SET notified = 1");
   }
+
+  // Migration: extend users/subscriptions with entitlement + Apple-readiness
+  // columns on older databases. Additive only — no existing column is
+  // touched, dropped, or renamed, and no user/subscription ID changes.
+  addColumnIfMissing(db, "users", "display_name", "display_name TEXT");
+  addColumnIfMissing(db, "users", "email_verified", "email_verified INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "users", "is_active", "is_active INTEGER NOT NULL DEFAULT 1");
+  addColumnIfMissing(db, "users", "role", "role TEXT NOT NULL DEFAULT 'USER'");
+  addColumnIfMissing(db, "users", "last_login_at", "last_login_at TEXT");
+  addColumnIfMissing(db, "users", "updated_at", "updated_at TEXT");
+  addColumnIfMissing(
+    db,
+    "users",
+    "apple_original_transaction_id",
+    "apple_original_transaction_id TEXT"
+  );
+  addColumnIfMissing(db, "users", "apple_account_token", "apple_account_token TEXT");
+
+  addColumnIfMissing(db, "subscriptions", "source", "source TEXT NOT NULL DEFAULT 'STRIPE'");
+  addColumnIfMissing(db, "subscriptions", "provider_customer_id", "provider_customer_id TEXT");
+  addColumnIfMissing(
+    db,
+    "subscriptions",
+    "provider_subscription_id",
+    "provider_subscription_id TEXT"
+  );
+  addColumnIfMissing(db, "subscriptions", "product_id", "product_id TEXT");
+  addColumnIfMissing(db, "subscriptions", "price_id", "price_id TEXT");
+  addColumnIfMissing(db, "subscriptions", "plan", "plan TEXT NOT NULL DEFAULT 'UNKNOWN'");
+  addColumnIfMissing(db, "subscriptions", "started_at", "started_at TEXT");
+  addColumnIfMissing(db, "subscriptions", "canceled_at", "canceled_at TEXT");
+  addColumnIfMissing(db, "subscriptions", "trial_ends_at", "trial_ends_at TEXT");
+  addColumnIfMissing(db, "subscriptions", "auto_renew", "auto_renew INTEGER NOT NULL DEFAULT 1");
+  addColumnIfMissing(
+    db,
+    "subscriptions",
+    "original_transaction_id",
+    "original_transaction_id TEXT"
+  );
+  addColumnIfMissing(db, "subscriptions", "environment", "environment TEXT");
+  addColumnIfMissing(
+    db,
+    "subscriptions",
+    "last_provider_event_id",
+    "last_provider_event_id TEXT"
+  );
+
+  // Backfill the new generalized provider columns from the legacy
+  // Stripe-only columns so rows written before this migration are still
+  // picked up by code that reads provider_subscription_id/provider_customer_id.
+  db.exec(
+    `UPDATE subscriptions SET provider_subscription_id = stripe_subscription_id
+     WHERE provider_subscription_id IS NULL AND stripe_subscription_id IS NOT NULL`
+  );
+  db.exec(
+    `UPDATE subscriptions SET provider_customer_id = (
+       SELECT u.stripe_customer_id FROM users u WHERE u.id = subscriptions.user_id
+     )
+     WHERE provider_customer_id IS NULL`
+  );
 
   // Opportunistic cleanup (~1% of connections), matching the PHP behaviour.
   if (Math.floor(Math.random() * 100) === 0) {

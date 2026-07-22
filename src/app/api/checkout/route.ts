@@ -30,6 +30,12 @@ export async function POST(req: Request) {
     const siteUrl = envRequired("APP_URL").replace(/\/+$/, "");
     const stripe = getStripe();
 
+    const price = await stripe.prices.retrieve(priceId).catch(() => null);
+    if (!price || !price.active) {
+      console.error(`Stripe price not found or inactive: ${priceId}`);
+      return jsonError("server_not_configured", 503);
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],

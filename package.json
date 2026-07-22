@@ -12,7 +12,8 @@
     "start:web": "next start",
     "bot": "node bot/index.js",
     "bot:register": "node bot/register-commands.js",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
@@ -24,14 +25,15 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@tailwindcss/postcss": "^4.1.13",
-    "concurrently": "^9.1.2",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.15.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "concurrently": "^9.1.2",
     "eslint": "^9.24.0",
     "eslint-config-next": "^15.5.4",
     "tailwindcss": "^4.1.13",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10"
   }
 }
