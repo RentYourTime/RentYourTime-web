@@ -102,6 +102,9 @@ describe("GET /api/me and POST /api/logout", () => {
     const data = await res.json();
     expect(res.status).toBe(200);
     expect(data.user.email).toBe("grace@example.com");
+    expect(typeof data.user.id).toBe("string");
+    expect(data.user.id.length).toBeGreaterThan(0);
+    expect(data.user.id).toBe(reg.user.id);
     expect(data.user.subscription.is_pro).toBe(false);
     expect(data.user.subscription.source).toBe("NONE");
   });

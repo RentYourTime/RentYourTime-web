@@ -5,9 +5,12 @@ original PHP + static-HTML site.
 
 - **Marketing** — landing (`/`), pricing (`/pricing`), account (`/account`)
 - **Interactive demo** — a full iOS-style product demo at `/demo`
+- **Customer panel** (`/account`) — account details, subscription status, billing
+  history with hosted/PDF invoice links, and the Stripe Customer Portal
 - **API** — waitlist, account auth (register / login / me / logout), Stripe
-  subscription checkout + webhooks, and a subscription entitlement service that
-  recognizes whether Pro was purchased through Stripe or Apple — backed by SQLite
+  subscription checkout + webhooks + billing history, and a subscription
+  entitlement service that recognizes whether Pro was purchased through Stripe or
+  Apple — backed by SQLite
 
 ## Stack
 
@@ -67,14 +70,20 @@ Run behind a reverse proxy (nginx/Caddy) terminating HTTPS and forwarding
 | GET    | `/api/subscriptions/status`       | Subscription entitlement only (Bearer)      |
 | POST   | `/api/checkout`                   | Create a Stripe Checkout session (Bearer)   |
 | POST   | `/api/webhook`                    | Stripe webhook receiver                     |
+| GET    | `/api/billing/invoices`           | Your billing history (Bearer)               |
+| GET    | `/api/billing/invoices/[id]`      | One invoice, by local ID (Bearer)           |
+| POST   | `/api/billing/portal`             | Create a Stripe Customer Portal session     |
 | POST   | `/api/subscriptions/apple/sync`   | Apple sync — 501/503 today, see docs        |
 | POST   | `/api/webhooks/apple`             | Apple notifications — 501 today, see docs   |
 
 Tokens are random, stored only as SHA-256 hashes, and expire after 30 days.
 `src/lib/subscriptions.ts` (driven by Stripe/Apple webhooks) is the single source of
 truth for Pro — never grant Pro from a `?checkout=success` redirect alone, and never
-trust `productId`/`expiresAt` sent by a client. Details: [`docs/AUTH.md`](docs/AUTH.md),
-[`docs/SUBSCRIPTIONS.md`](docs/SUBSCRIPTIONS.md), [`docs/STRIPE.md`](docs/STRIPE.md),
+trust `productId`/`expiresAt` sent by a client. Billing history
+(`src/lib/billing.ts`) is always scoped to the authenticated user — there is no
+`userId` request parameter anywhere in the billing API. Details:
+[`docs/AUTH.md`](docs/AUTH.md), [`docs/SUBSCRIPTIONS.md`](docs/SUBSCRIPTIONS.md),
+[`docs/STRIPE.md`](docs/STRIPE.md), [`docs/BILLING_PORTAL.md`](docs/BILLING_PORTAL.md),
 [`docs/APPLE_SUBSCRIPTIONS.md`](docs/APPLE_SUBSCRIPTIONS.md).
 
 ## Legacy

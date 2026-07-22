@@ -15,6 +15,13 @@ Custom Bearer-token auth on top of SQLite — no NextAuth, no JWT library. Lives
 These paths are intentionally flat (not under `/api/auth/*`) — that's what already
 existed in this codebase, and there is no reason to rename them.
 
+`POST /api/register` accepts an optional `displayName` (trimmed, max 80 chars,
+stored in `users.display_name`). The account panel's register form
+(`src/components/AuthPanel.tsx`) also collects `confirmPassword` and Terms of
+Service / Privacy Policy acceptance checkboxes — both are **client-side only**
+gates before submit (there's no `tos_accepted` column and the API still only ever
+receives one `password`); don't expect the server to enforce either.
+
 ## Passwords
 
 Hashed with Node's built-in `crypto.scryptSync` (`N=16384`, 64-byte key), stored as
@@ -53,8 +60,9 @@ least one lowercase letter, one uppercase letter, one digit.
 `rateLimit(req, action, maxAttempts, windowSeconds, keyOverride?)` in `auth.ts` is a
 fixed-window, per-bucket limiter backed by the `rate_limits` table. Buckets are keyed
 by `sha256(action:ip)` by default; pass `keyOverride` (e.g. a user id) to key by
-something other than IP — used by Apple sync (per-user, since a single account can
-call it from one authenticated client).
+something other than IP — used by Apple sync and the billing endpoints (per-user,
+since a single account can call them from one authenticated client):
+`billing_invoices` (60/min/user), `billing_portal` (10/10min/user).
 
 Every route reads its JSON body through `readJsonBody(req, maxBytes)`, which rejects
 a non-`application/json` `Content-Type` (415) and oversized bodies (413) before

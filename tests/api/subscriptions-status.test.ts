@@ -36,8 +36,11 @@ describe("GET /api/subscriptions/status", () => {
       source: "NONE",
       status: "inactive",
       plan: "UNKNOWN",
+      subscription_id: null,
       product_id: null,
       price_id: null,
+      started_at: null,
+      environment: null,
       current_period_end: null,
       auto_renew: false,
     });
@@ -72,6 +75,8 @@ describe("GET /api/subscriptions/status", () => {
     expect(data.subscription.source).toBe("STRIPE");
     expect(data.subscription.plan).toBe("YEARLY");
     expect(data.subscription.current_period_end).toBe(future);
+    expect(data.subscription.subscription_id).toBe("sub_status_1");
+    expect(data.subscription.environment).toBe("test");
   });
 
   it("correctly identifies an Apple-sourced Pro subscription", async () => {

@@ -97,6 +97,37 @@ export function getDb(): Database.Database {
       discord_username TEXT,
       created_at TEXT NOT NULL
     );
+
+    -- One row per invoice (billing history). Charge/PaymentIntent webhook
+    -- events enrich an existing row rather than creating their own — see
+    -- docs/STRIPE.md for why (Stripe API version 2025-08-27.basil dropped
+    -- the direct invoice<->charge/payment_intent cross-references).
+    CREATE TABLE IF NOT EXISTS billing_records (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      source TEXT NOT NULL,
+      provider_invoice_id TEXT UNIQUE,
+      provider_payment_id TEXT,
+      provider_payment_intent_id TEXT,
+      provider_subscription_id TEXT,
+      invoice_number TEXT,
+      status TEXT NOT NULL,
+      amount_due INTEGER NOT NULL DEFAULT 0,
+      amount_paid INTEGER NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL,
+      hosted_invoice_url TEXT,
+      invoice_pdf_url TEXT,
+      receipt_url TEXT,
+      billing_reason TEXT,
+      period_start INTEGER,
+      period_end INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_billing_records_user_id ON billing_records(user_id);
+    CREATE INDEX IF NOT EXISTS idx_billing_records_provider_subscription_id ON billing_records(provider_subscription_id);
+    CREATE INDEX IF NOT EXISTS idx_billing_records_provider_payment_intent_id ON billing_records(provider_payment_intent_id);
+    CREATE INDEX IF NOT EXISTS idx_billing_records_created_at ON billing_records(created_at);
   `);
 
   // Migration: add waitlist.notified to older databases. Existing rows are

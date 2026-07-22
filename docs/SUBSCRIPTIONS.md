@@ -53,15 +53,22 @@ Shared verbatim by `GET /api/me` (`user.subscription`) and
   "source": "STRIPE",
   "status": "active",
   "plan": "YEARLY",
+  "subscription_id": "sub_...",
   "product_id": "prod_...",
   "price_id": "price_...",
+  "started_at": "2026-01-01T00:00:00.000Z",
+  "environment": "live",
   "current_period_end": 1784678399,
   "auto_renew": true
 }
 ```
 
-No Stripe customer/subscription ID is ever included in this shape — the frontend
-never needs them, and they aren't meaningful to a user.
+`subscription_id` is `provider_subscription_id` (falling back to the legacy
+`stripe_subscription_id` for rows written before that column existed) — the Stripe
+Subscription ID, safe to show and copy. `stripe_customer_id` is a different thing
+entirely (see [`docs/BILLING_PORTAL.md`](./BILLING_PORTAL.md) for how the various
+Stripe IDs relate) and is **never** included in this shape or any other API
+response — the frontend never needs it, and it isn't meaningful to a user.
 
 ## Known limitations
 

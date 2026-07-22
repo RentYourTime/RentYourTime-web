@@ -46,8 +46,11 @@ export interface SerializedSubscription {
   source: SubscriptionSource;
   status: SubscriptionStatus | string;
   plan: SubscriptionPlan;
+  subscription_id: string | null;
   product_id: string | null;
   price_id: string | null;
+  started_at: string | null;
+  environment: string | null;
   current_period_end: number | null;
   auto_renew: boolean;
 }
@@ -99,8 +102,11 @@ export function serializeSubscription(
       source: "NONE",
       status: "inactive",
       plan: "UNKNOWN",
+      subscription_id: null,
       product_id: null,
       price_id: null,
+      started_at: null,
+      environment: null,
       current_period_end: null,
       auto_renew: false,
     };
@@ -110,8 +116,11 @@ export function serializeSubscription(
     source: resolveSubscriptionSource(sub),
     status: sub.status,
     plan: sub.plan ?? "UNKNOWN",
+    subscription_id: sub.provider_subscription_id ?? sub.stripe_subscription_id ?? null,
     product_id: sub.product_id ?? null,
     price_id: sub.price_id ?? null,
+    started_at: sub.started_at ?? null,
+    environment: sub.environment ?? null,
     current_period_end: sub.current_period_end ?? null,
     auto_renew: !!sub.auto_renew,
   };

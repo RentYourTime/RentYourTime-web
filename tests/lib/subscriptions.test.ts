@@ -39,8 +39,11 @@ describe("subscriptions", () => {
       source: "NONE",
       status: "inactive",
       plan: "UNKNOWN",
+      subscription_id: null,
       product_id: null,
       price_id: null,
+      started_at: null,
+      environment: null,
       current_period_end: null,
       auto_renew: false,
     });

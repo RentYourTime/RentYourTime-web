@@ -30,13 +30,22 @@ Point Stripe's webhook at `https://<domain>/api/webhook` and subscribe to:
 - `customer.subscription.created`
 - `customer.subscription.updated`
 - `customer.subscription.deleted`
+- `invoice.created`
+- `invoice.finalized`
 - `invoice.paid`
 - `invoice.payment_failed`
+- `invoice.voided`
+- `charge.succeeded`
 - `charge.refunded`
+- `payment_intent.succeeded`
+- `payment_intent.payment_failed`
 
-(The first four were already required before this change; the last three are new —
-if you're updating an existing Dashboard webhook, add them to the existing endpoint's
-event list rather than creating a new endpoint.)
+If you're updating an existing Dashboard webhook, add whichever of these aren't
+already selected to the **existing** endpoint's event list — never create a second
+endpoint. The `invoice.*`/`charge.*`/`payment_intent.*` events populate billing
+history (`billing_records`) — see [`docs/BILLING_PORTAL.md`](./BILLING_PORTAL.md)
+for what each one does and why payment-id linkage is best-effort in the pinned API
+version.
 
 ### How it works
 

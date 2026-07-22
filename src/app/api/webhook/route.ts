@@ -9,6 +9,11 @@ import {
   ServerConfigError,
 } from "@/lib/stripe";
 import { upsertStripeSubscription } from "@/lib/subscriptions";
+import {
+  attachPaymentToInvoice,
+  markMostRecentInvoiceRefunded,
+  upsertInvoiceRecord,
+} from "@/lib/billing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,6 +58,65 @@ function findUserIdForSubscription(
     }
   }
   return userId;
+}
+
+function findUserIdByCustomer(db: ReturnType<typeof getDb>, custId: string | null): string {
+  if (!custId) return "";
+  const found = db.prepare("SELECT id FROM users WHERE stripe_customer_id = ?").get(custId) as
+    | { id: string }
+    | undefined;
+  return found?.id ?? "";
+}
+
+/**
+ * Mapping order per docs/STRIPE.md: metadata.user_id -> (rarely-expanded)
+ * subscription metadata.user_id -> customer -> stripe_customer_id ->
+ * subscription id -> subscriptions.provider_subscription_id.
+ */
+function resolveUserIdForInvoice(db: ReturnType<typeof getDb>, invoice: Stripe.Invoice): string {
+  let userId = String(invoice.metadata?.user_id ?? "");
+  if (!userId) {
+    const nestedSub = invoice.parent?.subscription_details?.subscription;
+    if (nestedSub && typeof nestedSub !== "string") {
+      userId = String(nestedSub.metadata?.user_id ?? "");
+    }
+  }
+  if (!userId) {
+    userId = findUserIdByCustomer(db, customerId(invoice.customer));
+  }
+  if (!userId) {
+    const subId = invoiceSubscriptionId(invoice);
+    if (subId) {
+      const found = db
+        .prepare(
+          "SELECT user_id FROM subscriptions WHERE provider_subscription_id = ? OR stripe_subscription_id = ?"
+        )
+        .get(subId, subId) as { user_id: string } | undefined;
+      userId = found?.user_id ?? "";
+    }
+  }
+  return userId;
+}
+
+/**
+ * `invoice.payments` (the new Invoice Payments list) is only populated when
+ * explicitly expanded — almost never true for a webhook payload — so this
+ * is a defensive bonus, not the primary payment-linkage mechanism. See
+ * docs/STRIPE.md: the reliable path is the charge.succeeded /
+ * payment_intent.succeeded events enriching the row afterwards.
+ */
+function extractInvoicePaymentIds(invoice: Stripe.Invoice): {
+  paymentIntentId: string | null;
+  chargeId: string | null;
+} {
+  const payment = invoice.payments?.data?.[0]?.payment;
+  if (!payment) return { paymentIntentId: null, chargeId: null };
+  const pi = payment.payment_intent;
+  const charge = payment.charge;
+  return {
+    paymentIntentId: pi ? (typeof pi === "string" ? pi : pi.id) : null,
+    chargeId: charge ? (typeof charge === "string" ? charge : charge.id) : null,
+  };
 }
 
 export async function POST(req: Request) {
@@ -142,14 +206,43 @@ export async function POST(req: Request) {
           eventId: event.id,
         });
       }
-    } else if (type === "invoice.paid" || type === "invoice.payment_failed") {
+    } else if (
+      type === "invoice.created" ||
+      type === "invoice.finalized" ||
+      type === "invoice.paid" ||
+      type === "invoice.payment_failed" ||
+      type === "invoice.voided"
+    ) {
+      const object = event.data.object as Stripe.Invoice;
+      const userId = resolveUserIdForInvoice(db, object);
+      const subId = invoiceSubscriptionId(object);
+      if (userId && object.id) {
+        const { paymentIntentId, chargeId } = extractInvoicePaymentIds(object);
+        upsertInvoiceRecord({
+          userId,
+          invoiceId: object.id,
+          invoiceNumber: object.number,
+          status: object.status ?? "draft",
+          amountDue: object.amount_due,
+          amountPaid: object.amount_paid,
+          currency: object.currency,
+          hostedInvoiceUrl: object.hosted_invoice_url ?? null,
+          invoicePdfUrl: object.invoice_pdf ?? null,
+          billingReason: object.billing_reason,
+          periodStart: object.period_start ?? null,
+          periodEnd: object.period_end ?? null,
+          createdAt: object.created,
+          subscriptionId: subId,
+          paymentIntentId,
+          chargeId,
+        });
+      }
+
       // Status stays authoritatively driven by customer.subscription.* —
       // these two events only cover a fast defensive transition to/from
       // past_due so a failed renewal doesn't leave Pro active indefinitely
       // if the subscription.updated event is delayed.
-      const object = event.data.object as Stripe.Invoice;
-      const subId = invoiceSubscriptionId(object);
-      if (subId) {
+      if (subId && (type === "invoice.paid" || type === "invoice.payment_failed")) {
         if (type === "invoice.payment_failed") {
           db.prepare(
             `UPDATE subscriptions SET status = 'past_due', updated_at = ?, last_provider_event_id = ?
@@ -162,6 +255,29 @@ export async function POST(req: Request) {
              WHERE (provider_subscription_id = ? OR stripe_subscription_id = ?) AND status = 'past_due'`
           ).run(now(), event.id, subId, subId);
         }
+      }
+    } else if (type === "charge.succeeded") {
+      const object = event.data.object as Stripe.Charge;
+      const userId = findUserIdByCustomer(db, customerId(object.customer));
+      if (userId) {
+        attachPaymentToInvoice(userId, "provider_payment_id", object.id);
+        const pi = object.payment_intent;
+        if (pi) {
+          attachPaymentToInvoice(
+            userId,
+            "provider_payment_intent_id",
+            typeof pi === "string" ? pi : pi.id
+          );
+        }
+      }
+    } else if (
+      type === "payment_intent.succeeded" ||
+      type === "payment_intent.payment_failed"
+    ) {
+      const object = event.data.object as Stripe.PaymentIntent;
+      const userId = findUserIdByCustomer(db, customerId(object.customer));
+      if (userId) {
+        attachPaymentToInvoice(userId, "provider_payment_intent_id", object.id);
       }
     } else if (type === "charge.refunded") {
       // Only a full refund revokes Pro; a partial refund (e.g. a
@@ -177,6 +293,8 @@ export async function POST(req: Request) {
             `UPDATE subscriptions SET status = 'refunded', updated_at = ?, last_provider_event_id = ?
              WHERE provider_customer_id = ? AND status NOT IN ('canceled', 'refunded')`
           ).run(now(), event.id, custId);
+          const userId = findUserIdByCustomer(db, custId);
+          if (userId) markMostRecentInvoiceRefunded(userId);
         }
       }
     }

@@ -292,12 +292,18 @@ odnawianie. Sprawdź: `https://rentyourtime.pl`.
    - `customer.subscription.created`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
+   - `invoice.created`
+   - `invoice.finalized`
    - `invoice.paid`
    - `invoice.payment_failed`
+   - `invoice.voided`
+   - `charge.succeeded`
    - `charge.refunded`
-   > Jeśli endpoint już istnieje w Stripe Dashboard z tylko pierwszymi czterema
-   > eventami, dopisz brakujące trzy do **tego samego** endpointu — nie twórz
-   > drugiego. Szczegóły mapowania pól: `docs/STRIPE.md`.
+   - `payment_intent.succeeded`
+   - `payment_intent.payment_failed`
+   > Jeśli endpoint już istnieje w Stripe Dashboard z podzbiorem tych eventów,
+   > dopisz brakujące do **tego samego** endpointu — nie twórz drugiego. Szczegóły
+   > mapowania pól: `docs/STRIPE.md` i `docs/BILLING_PORTAL.md` (historia faktur).
 4. Zapisz i skopiuj **Signing secret** (`whsec_...`).
 5. Wklej go do `.env` jako `STRIPE_WEBHOOK_SECRET` i zrestartuj:
 
@@ -305,6 +311,12 @@ odnawianie. Sprawdź: `https://rentyourtime.pl`.
 nano /var/www/rentyourtime/.env      # uzupełnij STRIPE_WEBHOOK_SECRET
 sudo systemctl restart rentyourtime
 ```
+
+6. **Customer Portal:** Panel Stripe → **Settings → Billing → Customer portal** —
+   włącz przynajmniej zmianę metody płatności i anulowanie subskrypcji (to, co
+   klient ma móc zrobić sam). Nie wymaga żadnej dodatkowej zmiennej środowiskowej —
+   `POST /api/billing/portal` używa już skonfigurowanego `STRIPE_SECRET_KEY` i
+   `APP_URL`.
 
 > W Stripe utwórz **roczną cenę cykliczną** i jej ID ustaw jako `STRIPE_PRICE_ID`.
 > Pro włącza się **wyłącznie** po potwierdzeniu płatności przez webhook — nie na podstawie
