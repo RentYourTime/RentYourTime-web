@@ -21,6 +21,7 @@ original PHP + static-HTML site.
 | Database   | SQLite via `better-sqlite3` (persistent disk)       |
 | Payments   | Stripe (official Node SDK)                          |
 | Passwords  | Node `scrypt` (no native bcrypt dependency)         |
+| Email      | AWS SES v2 (`@aws-sdk/client-sesv2`)                |
 
 > Built for a **long-running Node process** (VPS / container), not serverless —
 > the SQLite file and rate-limit / waitlist state need a persistent disk.
@@ -40,7 +41,10 @@ See `.env.example`. Stripe checkout/webhooks require `STRIPE_SECRET_KEY`,
 `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` and `APP_URL`. The waitlist and demo
 work without them. `APPLE_*` vars are optional — see
 [`docs/APPLE_SUBSCRIPTIONS.md`](docs/APPLE_SUBSCRIPTIONS.md); the Apple sync
-endpoint responds 503/501 without them, it never fails silently.
+endpoint responds 503/501 without them, it never fails silently. Email
+verification requires `AWS_REGION` and `EMAIL_FROM` — see
+[`docs/EMAIL_VERIFICATION.md`](docs/EMAIL_VERIFICATION.md); a send failure never
+blocks registration, it only sets `verification_email_sent: false`.
 
 The SQLite database is created automatically in `./.data`
 (override with `DATA_DIR`). This directory is git-ignored — back it up.
@@ -70,6 +74,8 @@ Run behind a reverse proxy (nginx/Caddy) terminating HTTPS and forwarding
 | GET    | `/api/subscriptions/status`       | Subscription entitlement only (Bearer)      |
 | POST   | `/api/checkout`                   | Create a Stripe Checkout session (Bearer)   |
 | POST   | `/api/webhook`                    | Stripe webhook receiver                     |
+| POST   | `/api/verify-email`               | Confirm an email verification token         |
+| POST   | `/api/resend-verification`        | Resend the verification email (Bearer)      |
 | GET    | `/api/billing/invoices`           | Your billing history (Bearer)               |
 | GET    | `/api/billing/invoices/[id]`      | One invoice, by local ID (Bearer)           |
 | POST   | `/api/billing/portal`             | Create a Stripe Customer Portal session     |
@@ -84,7 +90,8 @@ trust `productId`/`expiresAt` sent by a client. Billing history
 `userId` request parameter anywhere in the billing API. Details:
 [`docs/AUTH.md`](docs/AUTH.md), [`docs/SUBSCRIPTIONS.md`](docs/SUBSCRIPTIONS.md),
 [`docs/STRIPE.md`](docs/STRIPE.md), [`docs/BILLING_PORTAL.md`](docs/BILLING_PORTAL.md),
-[`docs/APPLE_SUBSCRIPTIONS.md`](docs/APPLE_SUBSCRIPTIONS.md).
+[`docs/APPLE_SUBSCRIPTIONS.md`](docs/APPLE_SUBSCRIPTIONS.md),
+[`docs/EMAIL_VERIFICATION.md`](docs/EMAIL_VERIFICATION.md).
 
 ## Legacy
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Wordmark } from "@/components/SiteNav";
 import { AuthPanel, type AuthSubmitPayload } from "@/components/AuthPanel";
-import { AccountOverview, type OverviewUser } from "@/components/AccountOverview";
+import { AccountOverview, type OverviewUser, type ResendStatus } from "@/components/AccountOverview";
 import { SubscriptionCard, type SubscriptionData } from "@/components/SubscriptionCard";
 import { BillingHistory, type InvoicesState } from "@/components/BillingHistory";
 
@@ -36,6 +36,7 @@ export function AccountClient() {
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [plan, setPlan] = useState<"monthly" | "yearly">("yearly");
+  const [resendStatus, setResendStatus] = useState<ResendStatus>("idle");
 
   const message = useCallback(
     (text: string, error = false) => setStatus({ text, error }),
@@ -86,6 +87,7 @@ export function AccountClient() {
         subscription: data.user.subscription,
       });
       if (data.user.subscription?.is_pro) message("Pro is active on this account.");
+      setResendStatus("idle");
       void loadInvoices(activeToken);
     },
     [api, loadInvoices, message]
@@ -137,6 +139,20 @@ export function AccountClient() {
     } catch {
       message("Checkout is not configured yet. Check the server settings.", true);
       setBusy(false);
+    }
+  }
+
+  async function onResendVerification() {
+    setResendStatus("sending");
+    try {
+      await api("resend-verification", { method: "POST", body: "{}" });
+      setResendStatus("sent");
+    } catch {
+      // The endpoint itself always returns a generic success message, so a
+      // thrown error here means the request didn't even reach it (offline,
+      // rate-limited, etc.) — fall back to idle so the button is retryable.
+      setResendStatus("idle");
+      message("Couldn't send the verification email. Please try again.", true);
     }
   }
 
@@ -207,7 +223,13 @@ export function AccountClient() {
             </section>
           ) : (
             <>
-              <AccountOverview user={account} onLogout={onLogout} busy={busy} />
+              <AccountOverview
+                user={account}
+                onLogout={onLogout}
+                onResendVerification={onResendVerification}
+                resendStatus={resendStatus}
+                busy={busy}
+              />
               <SubscriptionCard
                 subscription={account.subscription}
                 plan={plan}

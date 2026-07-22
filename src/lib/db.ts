@@ -128,6 +128,17 @@ export function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_billing_records_provider_subscription_id ON billing_records(provider_subscription_id);
     CREATE INDEX IF NOT EXISTS idx_billing_records_provider_payment_intent_id ON billing_records(provider_payment_intent_id);
     CREATE INDEX IF NOT EXISTS idx_billing_records_created_at ON billing_records(created_at);
+
+    CREATE TABLE IF NOT EXISTS email_verification_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_email_verification_user ON email_verification_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_email_verification_expires ON email_verification_tokens(expires_at);
   `);
 
   // Migration: add waitlist.notified to older databases. Existing rows are

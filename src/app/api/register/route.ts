@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto";
 import { getDb } from "@/lib/db";
 import { issueToken, json, jsonError, rateLimit, readJsonBody } from "@/lib/auth";
 import { hashPassword, passwordPolicyError } from "@/lib/password";
+import { buildVerificationUrl, createEmailVerificationToken } from "@/lib/email-verification";
+import { sendVerificationEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,12 +57,27 @@ export async function POST(req: Request) {
   }
 
   const { token, expires_at } = issueToken(id);
+
+  // A verification-email failure must never fail registration — the account
+  // already exists and has a valid session; the user can always resend.
+  let verificationEmailSent = false;
+  try {
+    const { token: verificationToken } = createEmailVerificationToken(id);
+    const verificationUrl = buildVerificationUrl(verificationToken);
+    await sendVerificationEmail({ email, displayName, verificationUrl });
+    verificationEmailSent = true;
+  } catch (e) {
+    // Never log the token/URL itself — only that sending failed.
+    console.error("Verification email send failed:", e instanceof Error ? e.message : e);
+  }
+
   return json(
     {
       ok: true,
-      user: { id, email, display_name: displayName, role: "USER" },
+      user: { id, email, display_name: displayName, role: "USER", email_verified: false },
       token,
       expires_at,
+      verification_email_sent: verificationEmailSent,
     },
     201
   );

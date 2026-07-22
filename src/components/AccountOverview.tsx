@@ -28,13 +28,19 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+export type ResendStatus = "idle" | "sending" | "sent";
+
 export function AccountOverview({
   user,
   onLogout,
+  onResendVerification,
+  resendStatus,
   busy,
 }: {
   user: OverviewUser;
   onLogout: () => void;
+  onResendVerification: () => void;
+  resendStatus: ResendStatus;
   busy: boolean;
 }) {
   return (
@@ -48,6 +54,28 @@ export function AccountOverview({
       >
         ACCOUNT
       </h2>
+
+      {!user.email_verified && (
+        <div
+          role="alert"
+          className="mt-4 flex flex-col items-start gap-2 rounded-2xl bg-[#3a2410] px-4 py-3 text-[13px] text-[#ffb86b] sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span>Your email address has not been verified.</span>
+          <button
+            type="button"
+            onClick={onResendVerification}
+            disabled={busy || resendStatus === "sending"}
+            className="shrink-0 rounded-full border border-[#ffb86b]/40 bg-transparent px-3 py-1.5 text-[12px] font-semibold text-[#ffb86b] transition-colors hover:bg-[#ffb86b]/10 disabled:cursor-wait disabled:opacity-60"
+          >
+            {resendStatus === "sending"
+              ? "Sending…"
+              : resendStatus === "sent"
+                ? "Email sent"
+                : "Resend verification email"}
+          </button>
+        </div>
+      )}
+
       <div className="mt-4 flex flex-col text-[14px]">
         <Row label="Name">{user.display_name || "—"}</Row>
         <Row label="Email">{user.email}</Row>

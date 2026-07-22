@@ -324,6 +324,40 @@ sudo systemctl restart rentyourtime
 
 ---
 
+## 8a. AWS SES (weryfikacja e-mail)
+
+Rejestracja wysyła e-mail weryfikacyjny przez AWS SES v2 — szczegóły w
+`docs/EMAIL_VERIFICATION.md`. Skrót dla tej instancji EC2:
+
+1. Zweryfikuj domenę wysyłkową (SES → **Verified identities**) i dodaj rekordy
+   DKIM/SPF/DMARC w DNS (pełne instrukcje: `docs/EMAIL_VERIFICATION.md`).
+2. **Zalecane na EC2:** zamiast `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` w
+   `.env`, przypnij do instancji **rolę IAM** z uprawnieniem `ses:SendEmail`
+   (EC2 → instancja → **Actions → Security → Modify IAM role**) — AWS SDK
+   pobierze poświadczenia automatycznie z metadanych instancji, więc nic nie
+   trzeba wpisywać w `.env`.
+3. Dopóki konto SES jest w **Sandbox** (domyślnie), maile dojdą tylko do
+   ręcznie zweryfikowanych adresów — do prawdziwych rejestracji użytkowników
+   potrzebny jest **Production Access** (SES Console → **Account dashboard**
+   → **Request production access**).
+4. Uzupełnij w `.env`:
+
+```bash
+nano /var/www/rentyourtime/.env
+```
+
+```dotenv
+AWS_REGION=eu-central-1
+EMAIL_FROM=RentYourTime <no-reply@rentyourtime.pl>
+# AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY tylko jeśli NIE używasz roli IAM
+```
+
+```bash
+sudo systemctl restart rentyourtime
+```
+
+---
+
 ## 9. Aktualizacje (redeploy)
 
 ```bash
@@ -378,6 +412,7 @@ Dodaj (codziennie 3:00):
 - [ ] usługa `systemd` (`enable --now`)
 - [ ] nginx z `X-Forwarded-For` + HTTPS przez certbot
 - [ ] webhook Stripe → `/api/webhook` + `STRIPE_WEBHOOK_SECRET`
+- [ ] AWS SES: domena zweryfikowana (DKIM/SPF/DMARC) + rola IAM lub klucze + `EMAIL_FROM`
 - [ ] backupy (snapshot EBS + cron `.backup`)
 
 ## Diagnostyka
@@ -390,3 +425,4 @@ Dodaj (codziennie 3:00):
 | Pro się nie włącza po płatności | Panel Stripe → Webhooks → czy zdarzenia mają status 200; czy `STRIPE_WEBHOOK_SECRET` zgadza się z endpointem |
 | `Cannot find module './xxx.js'` | `rm -rf .next && npm run build && sudo systemctl restart rentyourtime` |
 | HTTPS nie działa | `sudo certbot certificates`, `sudo nginx -t`, rekord A + propagacja DNS |
+| Rejestracja działa, ale mail weryfikacyjny nie dochodzi | `journalctl -u rentyourtime -e` (szukaj "Verification email send failed"); czy `EMAIL_FROM` jest zweryfikowany w SES; czy konto SES nadal w Sandbox (wysyła tylko do zweryfikowanych adresów); czy rola IAM/klucze mają `ses:SendEmail` |
