@@ -1,5 +1,12 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { authedRequest, jsonRequest, useIsolatedDataDir } from "../helpers/testDb";
+
+// This file only needs real registered users (via the real /api/register
+// flow) to exercise the admin waitlist API — not email delivery, so the SES
+// send is mocked. Token creation still runs for real.
+vi.mock("@/lib/email", () => ({
+  sendVerificationEmail: vi.fn().mockResolvedValue(undefined),
+}));
 
 beforeAll(() => {
   useIsolatedDataDir();
