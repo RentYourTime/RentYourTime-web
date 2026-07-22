@@ -64,17 +64,19 @@ export interface WaitlistStats {
   discord: number;
 }
 
+/** "New" means signed up in the last 7 days (admin panel shows it as "New (7d)"), not status=NEW. */
 export function getWaitlistStats(): WaitlistStats {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
   const row = getDb()
     .prepare(
       `SELECT
          COUNT(*) AS total,
-         SUM(CASE WHEN status = 'NEW' THEN 1 ELSE 0 END) AS new_count,
+         SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS new_count,
          SUM(CASE WHEN source = 'WEBSITE' THEN 1 ELSE 0 END) AS website_count,
          SUM(CASE WHEN source = 'DISCORD' THEN 1 ELSE 0 END) AS discord_count
        FROM waitlist`
     )
-    .get() as {
+    .get(sevenDaysAgo) as {
     total: number;
     new_count: number | null;
     website_count: number | null;

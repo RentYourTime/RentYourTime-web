@@ -1,13 +1,13 @@
 /**
- * Waitlist confirmation email — same table-based, inline-CSS, dark/green
- * design as verification-email.ts (see that file for the client-compat
- * rationale: Gmail/Apple Mail/Outlook/mobile, no JS, no external fonts).
+ * Waitlist confirmation email — table-based HTML matching the approved
+ * design (badge + glowing dot, gradient top bar, "While you wait" box).
  */
 
 const COLORS = {
   background: "#050505",
   card: "#0a0a0a",
   cardBorder: "rgba(255,255,255,0.08)",
+  cardBorder2: "rgba(255,255,255,0.06)",
   text: "#ffffff",
   textSecondary: "rgba(255,255,255,0.58)",
   textMuted: "rgba(255,255,255,0.35)",
@@ -25,15 +25,6 @@ export interface RenderedEmail {
   text: string;
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 export function renderWaitlistConfirmationEmail(): RenderedEmail {
   const html = `<!doctype html>
 <html lang="en">
@@ -45,43 +36,68 @@ export function renderWaitlistConfirmationEmail(): RenderedEmail {
   </head>
   <body style="margin:0; padding:0; background-color:${COLORS.background}; font-family:${FONT_STACK};">
     <div style="display:none; max-height:0; overflow:hidden; opacity:0; mso-hide:all;">
-      ${escapeHtml(PREHEADER)}
+      ${PREHEADER}
     </div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${COLORS.background};">
       <tr>
-        <td align="center" style="padding:40px 16px;">
+        <td align="center" style="padding:48px 16px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:620px;">
             <tr>
-              <td align="center" style="padding-bottom:28px;">
+              <td align="center" style="padding-bottom:32px;">
                 <span style="font-family:${FONT_STACK}; font-size:18px; font-weight:700; color:${COLORS.text};">
                   rentyourtime<span style="color:${COLORS.green};">.</span>
                 </span>
               </td>
             </tr>
             <tr>
-              <td style="background-color:${COLORS.card}; border:1px solid ${COLORS.cardBorder}; border-radius:28px; padding:40px 36px;">
+              <td style="background-color:${COLORS.card}; border:1px solid ${COLORS.cardBorder}; border-radius:28px;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                   <tr>
-                    <td style="font-family:${FONT_STACK}; font-size:12px; font-weight:700; letter-spacing:0.1em; color:${COLORS.green};">
-                      YOU'RE ON THE LIST
-                    </td>
+                    <td style="height:4px; line-height:4px; font-size:0; background-color:${COLORS.green};" bgcolor="${COLORS.green}">&nbsp;</td>
                   </tr>
                   <tr>
-                    <td style="padding-top:12px; font-family:${FONT_STACK}; font-size:30px; line-height:1.2; font-weight:700; color:${COLORS.text};">
-                      Welcome to RentYourTime.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding-top:16px; font-family:${FONT_STACK}; font-size:15px; line-height:1.55; color:${COLORS.textSecondary};">
-                      You're now on the beta waitlist. We'll email you when early access
-                      becomes available.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding-top:28px; border-top:1px solid ${COLORS.cardBorder}; padding-top:24px;">
-                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <td style="padding:44px 40px 40px;">
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-radius:999px; background-color:rgba(0,230,118,0.1); border:1px solid rgba(0,230,118,0.25);">
                         <tr>
-                          <td style="padding-top:20px; font-family:${FONT_STACK}; font-size:13px; font-weight:700; color:${COLORS.green};">
+                          <td style="padding:6px 12px 6px 10px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                              <tr>
+                                <td style="padding-right:8px;">
+                                  <div style="width:7px; height:7px; border-radius:999px; background-color:${COLORS.green}; font-size:0; line-height:0;">&nbsp;</div>
+                                </td>
+                                <td style="font-family:${FONT_STACK}; font-size:11px; font-weight:700; letter-spacing:0.12em; color:${COLORS.green}; white-space:nowrap;">YOU'RE ON THE LIST</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <div style="padding-top:20px; font-family:${FONT_STACK}; font-size:34px; line-height:1.12; font-weight:700; color:${COLORS.text};">
+                        Welcome to<br />RentYourTime.
+                      </div>
+
+                      <div style="padding-top:18px; font-family:${FONT_STACK}; font-size:15px; line-height:1.6; color:${COLORS.textSecondary}; max-width:440px;">
+                        You're now on the beta waitlist. We'll email you the moment early access
+                        opens &mdash; no spam, just the signal.
+                      </div>
+
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:30px; background-color:rgba(255,255,255,0.03); border:1px solid ${COLORS.cardBorder2}; border-radius:18px;">
+                        <tr>
+                          <td style="padding:20px 22px;">
+                            <div style="font-family:${FONT_STACK}; font-size:12px; letter-spacing:0.06em; text-transform:uppercase; color:${COLORS.textMuted};">
+                              While you wait
+                            </div>
+                            <div style="padding-top:6px; font-family:${FONT_STACK}; font-size:14px; line-height:1.55; color:rgba(255,255,255,0.7);">
+                              Every scroll, every tap, every minute &mdash; it all adds up. Soon
+                              you'll see exactly what it costs.
+                            </div>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:30px; border-top:1px solid ${COLORS.cardBorder};">
+                        <tr>
+                          <td style="padding-top:24px; font-family:${FONT_STACK}; font-size:14px; font-weight:700; color:${COLORS.green};">
                             Every minute costs.
                           </td>
                         </tr>
@@ -93,7 +109,7 @@ export function renderWaitlistConfirmationEmail(): RenderedEmail {
             </tr>
             <tr>
               <td align="center" style="padding-top:28px; font-family:${FONT_STACK}; font-size:12px; line-height:1.6; color:${COLORS.textMuted};">
-                RentYourTime
+                RentYourTime &middot; You received this because you joined the waitlist.
               </td>
             </tr>
           </table>
@@ -107,11 +123,15 @@ export function renderWaitlistConfirmationEmail(): RenderedEmail {
 
 Welcome to RentYourTime.
 
-You're now on the beta waitlist. We'll email you when early access becomes available.
+You're now on the beta waitlist. We'll email you the moment early access opens —
+no spam, just the signal.
+
+While you wait: every scroll, every tap, every minute — it all adds up. Soon
+you'll see exactly what it costs.
 
 Every minute costs.
 
-RentYourTime
+RentYourTime · You received this because you joined the waitlist.
 `;
 
   return { subject: SUBJECT, html, text };
