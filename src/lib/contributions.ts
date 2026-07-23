@@ -54,6 +54,7 @@ export interface ContributionRow {
   stripe_payment_intent_id: string | null;
   stripe_event_id: string | null;
   refunded_amount_cents: number | null;
+  is_demo_source: number;
   created_at: string;
   paid_at: string | null;
   failed_at: string | null;
@@ -68,6 +69,8 @@ export interface SerializedContribution {
   status: ContributionStatus;
   createdAt: string;
   paidAt: string | null;
+  /** True when the amount was computed from dev-only demo accrued rent, not real synced data — see `src/lib/supportDemo.ts`. Never true in production. */
+  isDemo: boolean;
 }
 
 export function serializeContribution(row: ContributionRow): SerializedContribution {
@@ -79,6 +82,7 @@ export function serializeContribution(row: ContributionRow): SerializedContribut
     status: row.status,
     createdAt: row.created_at,
     paidAt: row.paid_at,
+    isDemo: !!row.is_demo_source,
   };
 }
 
@@ -88,6 +92,7 @@ export interface CreatePendingContributionParams {
   accruedRentCents: number;
   amountCents: number;
   currency: string;
+  isDemo?: boolean;
 }
 
 export function createPendingContribution(params: CreatePendingContributionParams): ContributionRow {
@@ -96,10 +101,19 @@ export function createPendingContribution(params: CreatePendingContributionParam
   getDb()
     .prepare(
       `INSERT INTO contributions
-         (id, user_id, percentage, accrued_rent_cents, amount_cents, currency, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?)`
+         (id, user_id, percentage, accrued_rent_cents, amount_cents, currency, status, is_demo_source, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)`
     )
-    .run(id, params.userId, params.percentage, params.accruedRentCents, params.amountCents, params.currency, now);
+    .run(
+      id,
+      params.userId,
+      params.percentage,
+      params.accruedRentCents,
+      params.amountCents,
+      params.currency,
+      params.isDemo ? 1 : 0,
+      now
+    );
   return getContributionById(id)!;
 }
 
@@ -227,12 +241,34 @@ export function listContributionsForUser(userId: string, limit = 50): Contributi
     .all(userId, capped) as ContributionRow[];
 }
 
-/** Only PAID rows, net of any partial refund — see `applyRefund`. REFUNDED (full) rows are excluded entirely. */
+/**
+ * Only PAID rows, net of any partial refund — see `applyRefund`. REFUNDED
+ * (full) rows are excluded entirely. Includes demo-sourced rows: those are
+ * still real Stripe Test Mode charges, just computed from a demo ledger
+ * value — see `getDemoTestPaymentsCentsForUser` for that subset alone.
+ */
 export function getTotalContributedCentsForUser(userId: string): number {
   const row = getDb()
     .prepare(
       `SELECT COALESCE(SUM(amount_cents - COALESCE(refunded_amount_cents, 0)), 0) AS total
        FROM contributions WHERE user_id = ? AND status = 'PAID'`
+    )
+    .get(userId) as { total: number };
+  return row.total;
+}
+
+/**
+ * The subset of `getTotalContributedCentsForUser` that came from a demo
+ * accrued-rent value (`is_demo_source = 1`) — real money, real Stripe Test
+ * Mode charges, just kept as its own figure so the UI never silently mixes
+ * it into a total that looks like genuine production contributions. Always
+ * 0 in production (no demo-sourced row can ever be created there).
+ */
+export function getDemoTestPaymentsCentsForUser(userId: string): number {
+  const row = getDb()
+    .prepare(
+      `SELECT COALESCE(SUM(amount_cents - COALESCE(refunded_amount_cents, 0)), 0) AS total
+       FROM contributions WHERE user_id = ? AND status = 'PAID' AND is_demo_source = 1`
     )
     .get(userId) as { total: number };
   return row.total;

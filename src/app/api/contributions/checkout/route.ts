@@ -1,6 +1,6 @@
 import { currentUser, json, jsonError, rateLimit, readJsonBody } from "@/lib/auth";
 import { envRequired, getStripe, ServerConfigError } from "@/lib/stripe";
-import { getAccruedRentForUser } from "@/lib/accruedRent";
+import { resolveAccruedRentForUser } from "@/lib/accruedRent";
 import {
   attachCheckoutSession,
   computeAmountCents,
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   const percentage = parsed.body.percentage;
   if (!isAllowedPercentage(percentage)) return jsonError("invalid_percentage", 400);
 
-  const accrued = getAccruedRentForUser(user.id);
+  const accrued = resolveAccruedRentForUser(user.id);
   if (!accrued) return jsonError("accrued_rent_unavailable", 409);
 
   const amountCents = computeAmountCents(accrued.cents, percentage);
@@ -80,6 +80,7 @@ export async function POST(req: Request) {
       accruedRentCents: accrued.cents,
       amountCents,
       currency: accrued.currency,
+      isDemo: accrued.isDemo,
     });
 
     const siteUrl = envRequired("APP_URL").replace(/\/+$/, "");
@@ -88,6 +89,9 @@ export async function POST(req: Request) {
       contributionId: contribution.id,
       userId: user.id,
       percentage: String(percentage),
+      // Marks a real Stripe Test Mode charge whose amount came from dev-only
+      // demo data (docs/CONTRIBUTIONS.md) — not a mock payment, just a demo input.
+      ...(accrued.isDemo ? { source: "demo", environment: process.env.NODE_ENV || "development" } : {}),
     };
 
     const idempotencyHeader = req.headers.get("idempotency-key")?.trim();

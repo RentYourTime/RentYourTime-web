@@ -1,4 +1,5 @@
 import { getDb } from "./db";
+import { getDemoAccruedRent } from "./supportDemo";
 
 /**
  * Single server-side source of truth for "accrued rent" — the only thing
@@ -22,4 +23,22 @@ export function getAccruedRentForUser(userId: string): AccruedRent | null {
     .get(userId) as { accrued_rent_cents: number | null; accrued_rent_currency: string } | undefined;
   if (!row || row.accrued_rent_cents === null || row.accrued_rent_cents <= 0) return null;
   return { cents: row.accrued_rent_cents, currency: row.accrued_rent_currency };
+}
+
+export interface ResolvedAccruedRent extends AccruedRent {
+  /** True when this value came from `SUPPORT_DEMO_ACCRUED_RENT_CENTS`, not real synced data. */
+  isDemo: boolean;
+}
+
+/**
+ * Real synced data always wins. Only when a user has none does this fall
+ * back to the dev-only demo figure (`src/lib/supportDemo.ts`), which is
+ * itself a no-op outside development — so in production this is exactly
+ * equivalent to `getAccruedRentForUser`.
+ */
+export function resolveAccruedRentForUser(userId: string): ResolvedAccruedRent | null {
+  const real = getAccruedRentForUser(userId);
+  if (real) return { ...real, isDemo: false };
+  const demo = getDemoAccruedRent();
+  return demo ? { ...demo, isDemo: true } : null;
 }

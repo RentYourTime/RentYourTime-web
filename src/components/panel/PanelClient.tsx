@@ -266,9 +266,22 @@ interface Contribution {
   status: "PENDING" | "PAID" | "FAILED" | "EXPIRED" | "REFUNDED";
   createdAt: string;
   paidAt: string | null;
+  isDemo: boolean;
 }
 
 const PERCENTAGES = [5, 10, 25, 50, 75, 100] as const;
+
+/**
+ * Fixed, fictional entries shown only when the account's accrued rent is
+ * demo-sourced (dev-only — see docs/CONTRIBUTIONS.md). Never persisted,
+ * never fetched from the API, never counted in any real total.
+ */
+const DEMO_PREVIEW_HISTORY: { date: string; percentage: number; amountCents: number }[] = [
+  { date: "Jul 1, 2026", percentage: 10, amountCents: 284 },
+  { date: "Jun 1, 2026", percentage: 10, amountCents: 310 },
+  { date: "May 1, 2026", percentage: 25, amountCents: 666 },
+];
+const DEMO_PREVIEW_TOTAL_CENTS = DEMO_PREVIEW_HISTORY.reduce((sum, c) => sum + c.amountCents, 0);
 
 const CHECKOUT_ERROR_MESSAGES: Record<string, string> = {
   invalid_percentage: "Pick one of the percentages above.",
@@ -295,9 +308,11 @@ function ContributeTab({ token }: { token: string }) {
   const [pct, setPct] = useState<(typeof PERCENTAGES)[number]>(10);
   const [loading, setLoading] = useState(true);
   const [accruedRentCents, setAccruedRentCents] = useState<number | null>(null);
+  const [isDemoAccruedRent, setIsDemoAccruedRent] = useState(false);
   const [currency, setCurrency] = useState("usd");
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [totalContributedCents, setTotalContributedCents] = useState(0);
+  const [demoTestPaymentsCents, setDemoTestPaymentsCents] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [pendingSessionStatus, setPendingSessionStatus] = useState<
@@ -311,9 +326,11 @@ function ContributeTab({ token }: { token: string }) {
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error();
       setAccruedRentCents(data.data.accruedRentCents);
+      setIsDemoAccruedRent(!!data.data.isDemoAccruedRent);
       setCurrency(data.data.currency);
       setContributions(data.data.contributions);
       setTotalContributedCents(data.data.totalContributedCents);
+      setDemoTestPaymentsCents(data.data.demoTestPaymentsCents);
     } catch {
       setError("Couldn’t load your contributions.");
     } finally {
@@ -430,20 +447,31 @@ function ContributeTab({ token }: { token: string }) {
           <div className="mt-6 h-14 animate-pulse rounded-2xl bg-white/[0.04]" />
         ) : (
           <div className="mt-6 flex items-center justify-between rounded-2xl bg-ink px-5 py-[18px]">
-            <span className="text-sm text-white/55">Accrued rent this month</span>
+            <span className="flex items-center gap-2 text-sm text-white/55">
+              Accrued rent this month
+              {isDemoAccruedRent && (
+                <span className="inline-flex h-5 items-center rounded-full bg-white/10 px-2 text-[10px] font-bold tracking-[0.04em] text-white/60">
+                  DEMO DATA
+                </span>
+              )}
+            </span>
             <span className="text-2xl font-bold tabular-nums">
               {available ? formatCents(accruedRentCents!, currency) : "—"}
             </span>
           </div>
         )}
 
+        {isDemoAccruedRent && !loading && (
+          <p className="mt-3 text-xs leading-[1.5] text-white/40">
+            Showing demo test data because your account has no synced rent ledger yet.
+            Contributing still opens a real Stripe Checkout session in Test Mode.
+          </p>
+        )}
+
         {!loading && !available ? (
           <p className="mt-4 text-sm leading-[1.55] text-white/45">
             Your rent ledger isn’t syncing from the app yet, so there’s nothing to contribute from
-            right now — check back once it does. Curious what it looks like?{" "}
-            <Link href="/demo/support" className="text-signal">
-              View a demo →
-            </Link>
+            right now — check back once it does.
           </p>
         ) : (
           <>
@@ -500,42 +528,116 @@ function ContributeTab({ token }: { token: string }) {
           .
         </div>
       </div>
-      <div className="rounded-[24px] bg-card p-[26px]">
-        <div className="mb-4 text-base font-semibold">Your contributions</div>
-        {loading ? (
+      {loading ? (
+        <div className="rounded-[24px] bg-card p-[26px]">
           <div className="flex flex-col gap-3">
             <div className="h-10 animate-pulse rounded-xl bg-white/[0.04]" />
             <div className="h-10 animate-pulse rounded-xl bg-white/[0.04]" />
-          </div>
-        ) : contributions.length === 0 ? (
-          <p className="text-sm text-white/40">You haven’t contributed yet.</p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {contributions.map((c) => (
-              <div
-                key={c.id}
-                className="flex items-center justify-between border-b border-white/[0.06] pb-3 last:border-0"
-              >
-                <div>
-                  <div className="text-sm">{formatContributionDate(c.paidAt ?? c.createdAt)}</div>
-                  <div className="text-xs text-white/40">
-                    {c.percentage}% of rent{c.status !== "PAID" ? ` · ${c.status.toLowerCase()}` : ""}
-                  </div>
-                </div>
-                <b className={`font-semibold tabular-nums ${c.status === "PAID" ? "text-signal" : "text-white/40"}`}>
-                  {formatCents(c.amountCents, c.currency)}
-                </b>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="mt-5 rounded-2xl bg-ink p-4 text-center">
-          <div className="text-xs text-white/45">Contributed so far</div>
-          <div className="text-2xl font-bold tabular-nums">
-            {loading ? "—" : formatCents(totalContributedCents, currency)}
           </div>
         </div>
-      </div>
+      ) : isDemoAccruedRent ? (
+        <div className="flex flex-col gap-4">
+          <div className="rounded-[24px] bg-card p-[26px]">
+            <div className="mb-4 flex items-center gap-2 text-base font-semibold">
+              Preview contributions
+              <span className="inline-flex h-5 items-center rounded-full bg-white/10 px-2 text-[10px] font-bold tracking-[0.04em] text-white/60">
+                DEMO DATA
+              </span>
+            </div>
+            <div className="flex flex-col gap-3">
+              {DEMO_PREVIEW_HISTORY.map((c) => (
+                <div
+                  key={c.date}
+                  className="flex items-center justify-between border-b border-white/[0.06] pb-3 last:border-0"
+                >
+                  <div>
+                    <div className="text-sm">{c.date}</div>
+                    <div className="text-xs text-white/40">{c.percentage}% of rent</div>
+                  </div>
+                  <b className="font-semibold tabular-nums text-white/40">
+                    {formatCents(c.amountCents, currency)}
+                  </b>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 rounded-2xl bg-ink p-4 text-center">
+              <div className="text-xs text-white/45">Preview total — not real, never saved</div>
+              <div className="text-2xl font-bold tabular-nums text-white/50">
+                {formatCents(DEMO_PREVIEW_TOTAL_CENTS, currency)}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[24px] bg-card p-[26px]">
+            <div className="mb-4 text-base font-semibold">Test Stripe payments</div>
+            {contributions.filter((c) => c.isDemo).length === 0 ? (
+              <p className="text-sm text-white/40">
+                No test payments yet — contributing above creates a real Stripe Test Mode charge.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {contributions
+                  .filter((c) => c.isDemo)
+                  .map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between border-b border-white/[0.06] pb-3 last:border-0"
+                    >
+                      <div>
+                        <div className="text-sm">{formatContributionDate(c.paidAt ?? c.createdAt)}</div>
+                        <div className="text-xs text-white/40">
+                          {c.percentage}% of rent · Stripe test
+                          {c.status !== "PAID" ? ` · ${c.status.toLowerCase()}` : ""}
+                        </div>
+                      </div>
+                      <b className={`font-semibold tabular-nums ${c.status === "PAID" ? "text-signal" : "text-white/40"}`}>
+                        {formatCents(c.amountCents, c.currency)}
+                      </b>
+                    </div>
+                  ))}
+              </div>
+            )}
+            <div className="mt-5 rounded-2xl bg-ink p-4 text-center">
+              <div className="text-xs text-white/45">Real Stripe Test Mode payments</div>
+              <div className="text-2xl font-bold tabular-nums">
+                {formatCents(demoTestPaymentsCents, currency)}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-[24px] bg-card p-[26px]">
+          <div className="mb-4 text-base font-semibold">Your contributions</div>
+          {contributions.length === 0 ? (
+            <p className="text-sm text-white/40">You haven’t contributed yet.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {contributions.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between border-b border-white/[0.06] pb-3 last:border-0"
+                >
+                  <div>
+                    <div className="text-sm">{formatContributionDate(c.paidAt ?? c.createdAt)}</div>
+                    <div className="text-xs text-white/40">
+                      {c.percentage}% of rent{c.status !== "PAID" ? ` · ${c.status.toLowerCase()}` : ""}
+                    </div>
+                  </div>
+                  <b className={`font-semibold tabular-nums ${c.status === "PAID" ? "text-signal" : "text-white/40"}`}>
+                    {formatCents(c.amountCents, c.currency)}
+                  </b>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mt-5 rounded-2xl bg-ink p-4 text-center">
+            <div className="text-xs text-white/45">Contributed so far</div>
+            <div className="text-2xl font-bold tabular-nums">
+              {formatCents(totalContributedCents, currency)}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

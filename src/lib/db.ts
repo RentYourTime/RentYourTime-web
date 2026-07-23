@@ -156,6 +156,7 @@ export function getDb(): Database.Database {
       stripe_payment_intent_id TEXT UNIQUE,
       stripe_event_id TEXT,
       refunded_amount_cents INTEGER,
+      is_demo_source INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       paid_at TEXT,
       failed_at TEXT,
@@ -237,6 +238,9 @@ export function getDb(): Database.Database {
   // no request handler may ever set this from client input.
   addColumnIfMissing(db, "users", "accrued_rent_cents", "accrued_rent_cents INTEGER");
   addColumnIfMissing(db, "users", "accrued_rent_currency", "accrued_rent_currency TEXT NOT NULL DEFAULT 'usd'");
+  // Migration: contributions.is_demo_source for pre-existing databases (new
+  // databases already get it from the CREATE TABLE above).
+  addColumnIfMissing(db, "contributions", "is_demo_source", "is_demo_source INTEGER NOT NULL DEFAULT 0");
 
   addColumnIfMissing(db, "subscriptions", "source", "source TEXT NOT NULL DEFAULT 'STRIPE'");
   addColumnIfMissing(db, "subscriptions", "provider_customer_id", "provider_customer_id TEXT");

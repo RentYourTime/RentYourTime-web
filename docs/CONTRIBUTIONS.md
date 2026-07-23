@@ -34,6 +34,10 @@ sync endpoint from the iOS app, or a manual operator action) needs to
 `UPDATE users SET accrued_rent_cents = ?, accrued_rent_currency = ? WHERE id = ?`. No
 request handler accepts this value from the client — see §5 below.
 
+In development, `ENABLE_SUPPORT_DEMO` (below) fills this gap with a realistic demo
+figure so the screen and the real Stripe flow can be exercised end to end without
+manually seeding a user row.
+
 ## Flow
 
 1. `/panel` (tab `contribute`) loads → `GET /api/contributions` returns the caller's
@@ -217,6 +221,71 @@ No new variables. Contributions reuse the existing `STRIPE_SECRET_KEY`,
 `STRIPE_WEBHOOK_SECRET`, and `APP_URL` — dynamic `price_data` means no
 `STRIPE_CONTRIBUTION_PRICE_ID` is needed. See `.env.example`.
 
+## Development demo mode
+
+Lets `/panel` show a realistic accrued-rent figure and history for accounts with no
+real synced ledger yet, **without ever mocking Stripe** — contributing still opens a
+real Stripe Checkout session in Test Mode, still goes through the real webhook, and
+still writes a real `contributions` row.
+
+### Enabling it
+
+Set in your local `.env` (see `.env.example`):
+
+```
+ENABLE_SUPPORT_DEMO=true
+SUPPORT_DEMO_ACCRUED_RENT_CENTS=2840
+SUPPORT_DEMO_CURRENCY=usd
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+### How it behaves
+
+- **Never active in production.** `isSupportDemoEnabled()` in `src/lib/supportDemo.ts`
+  checks `process.env.NODE_ENV === "production"` first, unconditionally, before even
+  looking at `ENABLE_SUPPORT_DEMO` — a hard, server-only kill switch with no code path
+  that reads it from the client. In production, `ENABLE_SUPPORT_DEMO` and
+  `SUPPORT_DEMO_ACCRUED_RENT_CENTS` are simply never consulted.
+- **Real data always wins.** `resolveAccruedRentForUser()` in `src/lib/accruedRent.ts`
+  tries `getAccruedRentForUser()` (the real, on-device-synced value) first; the demo
+  figure is only used as a fallback when that's `null`. The moment a real
+  `accrued_rent_cents` exists for an account, demo mode stops applying to it — even
+  with `ENABLE_SUPPORT_DEMO=true`.
+- **Checkout is 100% real.** `POST /api/contributions/checkout` calls
+  `resolveAccruedRentForUser()` instead of `getAccruedRentForUser()` — that's the only
+  change. The amount is still computed server-side, the client still only ever sends
+  `{ percentage }`, and `stripe.checkout.sessions.create()` is called exactly as
+  normal. The only extra is metadata (`source: "demo"`,
+  `environment: process.env.NODE_ENV`) stamped on the Checkout Session and
+  PaymentIntent, and `contributions.is_demo_source = 1` on the local row — both purely
+  informational, and neither affects settlement logic in
+  `settleContributionFromSession()`, which cross-checks amount/currency/user exactly
+  the same way regardless.
+- **Preview history is fictional and never persisted.** The three example past entries
+  and the "Preview total" shown alongside a real Stripe Test Mode section are a fixed,
+  hardcoded array in `PanelClient.tsx` (`DEMO_PREVIEW_HISTORY`) — the frontend renders
+  them whenever the API says `isDemoAccruedRent: true`, but they never touch
+  `POST /api/contributions/checkout` or any database table. They're visually labeled
+  "Demo data" and kept in their own card, never summed into a real total.
+- **Real test payments get their own total.** Once a demo-sourced Checkout Session is
+  actually paid (via the webhook, same as any other contribution), it shows up under
+  "Test Stripe payments" — a real `contributions` row, real money in Stripe Test Mode
+  — with its own running total (`GET /api/contributions` → `demoTestPaymentsCents`,
+  `getDemoTestPaymentsCentsForUser()` in `src/lib/contributions.ts`). This is never
+  combined with the fake preview total, and — outside of this dedicated demo
+  breakdown — it's still included in the account's normal
+  `totalContributedCents` (it's real money either way; only the *input* amount came
+  from demo data).
+- **Never grants Pro.** Unaffected by any of this — `settleContributionFromSession()`
+  never touches `src/lib/subscriptions.ts` regardless of `is_demo_source`.
+
+### Disabling it
+
+Remove or set `ENABLE_SUPPORT_DEMO=false` (anything other than the exact string
+`"true"` disables it) — or just deploy to production, where it's always off
+regardless of the env file.
+
 ## Stripe Dashboard setup
 
 1. **Webhook**: open the *existing* endpoint (the one already receiving
@@ -242,10 +311,23 @@ No new variables. Contributions reuse the existing `STRIPE_SECRET_KEY`,
   pattern as `tests/api/webhook.test.ts`. Covers: paid, amount/currency/user mismatch
   refusal, duplicate-event idempotency, expired, async-failed, full and partial refund,
   and confirms a contribution never creates a `subscriptions` row.
+- `tests/lib/supportDemo.test.ts` — the production kill switch, the `ENABLE_SUPPORT_DEMO`
+  gate, and that real ledger data always outranks the demo fallback.
+- `tests/api/contributions-demo.test.ts` — API-level precedence/serialization
+  (`isDemoAccruedRent`, per-contribution `isDemo`, `demoTestPaymentsCents`) and webhook
+  settlement of a demo-sourced contribution (still real, still no Pro) — no Stripe
+  mocking, same conventions as the rest of the suite.
+- `tests/api/contributions-checkout-demo.test.ts` — the one file in this suite that
+  mocks `@/lib/stripe`'s `getStripe()`, specifically to assert the demo-triggered
+  Checkout Session carries `metadata.source === "demo"` and the correct computed
+  amount without a live network call. Every other test file still avoids mocking the
+  Stripe SDK client (see below).
 - For manual end-to-end testing against a live Stripe test-mode account: run
-  `stripe listen --forward-to localhost:3000/api/webhook`, set `accrued_rent_cents`
-  directly via SQL for a test user (`UPDATE users SET accrued_rent_cents = 2840 WHERE
-  email = '...'`), then use a
+  `stripe listen --forward-to localhost:3000/api/webhook`, then either set
+  `accrued_rent_cents` directly via SQL for a test user (`UPDATE users SET
+  accrued_rent_cents = 2840 WHERE email = '...'`) or, more conveniently, set
+  `ENABLE_SUPPORT_DEMO=true` (see "Development demo mode" above) so any account with
+  no real ledger gets the same $28.40 figure automatically. Either way, use a
   [Stripe test card](https://stripe.com/docs/testing#cards) (e.g. `4242 4242 4242 4242`,
   any future expiry, any CVC) at Checkout.
 
