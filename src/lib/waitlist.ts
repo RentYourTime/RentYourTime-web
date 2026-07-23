@@ -3,10 +3,10 @@ import { getDb } from "./db";
 
 /** All `waitlist` table reads/writes live here — routes and the admin API stay thin. */
 
-export type WaitlistSource = "WEBSITE" | "DISCORD" | "MANUAL";
+export type WaitlistSource = "WEBSITE" | "DISCORD" | "MANUAL" | "TEAMS";
 export type WaitlistStatus = "NEW" | "CONTACTED" | "INVITED" | "CONVERTED" | "UNSUBSCRIBED";
 
-const SOURCES: ReadonlySet<string> = new Set(["WEBSITE", "DISCORD", "MANUAL"]);
+const SOURCES: ReadonlySet<string> = new Set(["WEBSITE", "DISCORD", "MANUAL", "TEAMS"]);
 const STATUSES: ReadonlySet<string> = new Set([
   "NEW",
   "CONTACTED",
@@ -94,13 +94,16 @@ export interface InsertWaitlistSignupParams {
   email: string;
   ipHash: string | null;
   userAgent: string | null;
+  source?: WaitlistSource;
 }
 
 /**
  * Atomic insert-or-ignore (`ON CONFLICT DO NOTHING`), so concurrent
  * duplicate submissions can never race into two rows the way a
- * SELECT-then-INSERT check could. Always source=WEBSITE — this is the only
- * code path that writes to this table today.
+ * SELECT-then-INSERT check could. `email` is the primary key across every
+ * source, so a repeat signup under a different source is a silent no-op —
+ * same "never disclose whether the address already existed" behavior the
+ * caller already relies on.
  */
 export function insertWaitlistSignup(
   params: InsertWaitlistSignupParams
@@ -113,10 +116,10 @@ export function insertWaitlistSignup(
     .prepare(
       `INSERT INTO waitlist
          (email, created_at, ip, notified, id, source, status, confirmation_sent, owner_email_notified, user_agent, updated_at)
-       VALUES (?, ?, ?, 0, ?, 'WEBSITE', 'NEW', 0, 0, ?, ?)
+       VALUES (?, ?, ?, 0, ?, ?, 'NEW', 0, 0, ?, ?)
        ON CONFLICT(email) DO NOTHING`
     )
-    .run(params.email, now, params.ipHash, id, params.userAgent, now);
+    .run(params.email, now, params.ipHash, id, params.source ?? "WEBSITE", params.userAgent, now);
 
   if (result.changes > 0) return { id, isNew: true };
 

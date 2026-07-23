@@ -15,6 +15,7 @@ export interface UserRow {
   display_name: string | null;
   email_verified: number;
   is_active: number;
+  /** 'USER' (default) | 'ADMIN' (platform admin) | 'ADMIN_TEAMS' (team admin) */
   role: string;
   last_login_at: string | null;
   updated_at: string | null;
@@ -160,6 +161,19 @@ export function requireAdmin(req: Request): { user: UserRow } | { error: NextRes
   const user = currentUser(req);
   if (!user) return { error: jsonError("unauthorized", 401) };
   if (user.role !== "ADMIN") return { error: jsonError("forbidden", 403) };
+  return { user };
+}
+
+/**
+ * Gate for the team-admin panel: 401 with no token, 403 for anyone whose
+ * role isn't `ADMIN_TEAMS`. A platform `ADMIN` does not automatically pass
+ * this gate — the two roles are granted independently (see
+ * `scripts/grant-admin.mjs`).
+ */
+export function requireAdminTeams(req: Request): { user: UserRow } | { error: NextResponse } {
+  const user = currentUser(req);
+  if (!user) return { error: jsonError("unauthorized", 401) };
+  if (user.role !== "ADMIN_TEAMS") return { error: jsonError("forbidden", 403) };
   return { user };
 }
 

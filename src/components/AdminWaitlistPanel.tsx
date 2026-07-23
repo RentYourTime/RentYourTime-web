@@ -205,6 +205,7 @@ export function AdminWaitlistPanel({ token }: { token: string }) {
           >
             <option value="">All sources</option>
             <option value="WEBSITE">Website</option>
+            <option value="TEAMS">Teams pilot</option>
             <option value="DISCORD">Discord</option>
             <option value="MANUAL">Manual</option>
           </select>

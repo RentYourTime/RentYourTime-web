@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { CopyButton } from "./CopyButton";
 
 export interface OverviewUser {
@@ -89,12 +90,38 @@ export function AccountOverview({
         <Row label="Member since">{formatDate(user.created_at)}</Row>
         <Row label="Email verified">{user.email_verified ? "Verified" : "Not verified"}</Row>
       </div>
+
+      <div className="mt-6 flex flex-wrap gap-2.5">
+        <Link
+          href="/panel"
+          className="inline-flex h-11 items-center rounded-full border border-white/10 bg-transparent px-5 text-[13px] font-semibold text-white/70 no-underline transition-colors hover:bg-white/5"
+        >
+          Open your dashboard →
+        </Link>
+        {user.role === "ADMIN" && (
+          <Link
+            href="/admin"
+            className="inline-flex h-11 items-center rounded-full border border-signal/30 bg-signal/[0.08] px-5 text-[13px] font-semibold text-signal no-underline transition-colors hover:bg-signal/[0.14]"
+          >
+            Admin panel →
+          </Link>
+        )}
+        {user.role === "ADMIN_TEAMS" && (
+          <Link
+            href="/team-admin"
+            className="inline-flex h-11 items-center rounded-full border border-signal/30 bg-signal/[0.08] px-5 text-[13px] font-semibold text-signal no-underline transition-colors hover:bg-signal/[0.14]"
+          >
+            Team admin panel →
+          </Link>
+        )}
+      </div>
+
       <button
         type="button"
         onClick={onLogout}
         disabled={busy}
         aria-label="Sign out of your account"
-        className="mt-6 h-11 rounded-full border border-white/10 bg-transparent px-5 text-[13px] font-semibold text-white/70 transition-colors hover:bg-white/5 focus:outline-none focus-visible:shadow-[0_0_0_1px_var(--signal)] disabled:cursor-wait disabled:opacity-60"
+        className="mt-3.5 h-11 rounded-full border border-white/10 bg-transparent px-5 text-[13px] font-semibold text-white/70 transition-colors hover:bg-white/5 focus:outline-none focus-visible:shadow-[0_0_0_1px_var(--signal)] disabled:cursor-wait disabled:opacity-60"
       >
         Sign out
       </button>

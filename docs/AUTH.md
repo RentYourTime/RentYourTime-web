@@ -56,7 +56,10 @@ least one lowercase letter, one uppercase letter, one digit.
   single-use, 24h token check (`src/lib/email-verification.ts`) — see
   [`docs/EMAIL_VERIFICATION.md`](./EMAIL_VERIFICATION.md) for the full flow,
   token model, and AWS SES setup. Registration never blocks on the email send.
-- `role`: always `'USER'` today — no admin endpoints exist. Reserved for later.
+- `role`: `'USER'` (default), `'ADMIN'` (platform admin — gated by `requireAdmin()`), or
+  `'ADMIN_TEAMS'` (team admin — gated by `requireAdminTeams()`). Both are granted with
+  `scripts/grant-admin.mjs <email> [ADMIN|ADMIN_TEAMS]` — there's no self-service upgrade
+  path and no request handler ever sets a role from client input.
 - `last_login_at` / `updated_at`: updated on every successful login.
 
 ## Rate limiting & request hygiene
@@ -81,11 +84,23 @@ one route (`matcher: ["/verify"]`): it sets `Cache-Control: no-store` on the
 verification page, since a plain page component can't set response headers in
 the App Router and that page briefly carries a token in its query string.
 
+## Admin panels
+
+- `/admin` (Super Admin, `role = 'ADMIN'`) and `/team-admin` (Team Admin,
+  `role = 'ADMIN_TEAMS'`) are client-gated the same way `/admin/waitlist` is: the page
+  calls `GET /api/me` with the token from `sessionStorage` and only renders once the
+  role matches, since this app has no server-side session middleware to gate a page
+  before it ships to the client.
+- `PATCH /api/admin/users/[id]` (`{ action: "suspend" | "restore" }`) is the only
+  write path against another user's account, and it can't target the caller's own id.
+  There is deliberately no delete endpoint — the Super Admin panel's "Delete" button
+  removes the row from that admin's own view only, without touching the database.
+
 ## Known limitations
 
 - No password reset flow (email verification exists — see
   [`docs/EMAIL_VERIFICATION.md`](./EMAIL_VERIFICATION.md) — but there's no
   "forgot password" equivalent).
-- No admin tooling to flip `is_active` or `role` — today that's a manual SQL update.
+- No permanent user-delete endpoint — only suspend/restore (`is_active`) is wired up.
 - No single-session enforcement or token listing/revocation UI (a user can't see or
   revoke individual devices — only "logout this token").
