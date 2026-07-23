@@ -1,8 +1,8 @@
 "use client";
 
-export type AccountTab = "overview" | "subscription" | "billing" | "admin";
+export type AccountTab = "overview" | "subscription" | "billing";
 
-const BASE_TABS: { key: AccountTab; label: string }[] = [
+const TABS: { key: AccountTab; label: string }[] = [
   { key: "overview", label: "Account" },
   { key: "subscription", label: "Subscription" },
   { key: "billing", label: "Billing" },
@@ -11,22 +11,17 @@ const BASE_TABS: { key: AccountTab; label: string }[] = [
 export function AccountTabs({
   tab,
   onTabChange,
-  showAdmin,
 }: {
   tab: AccountTab;
   onTabChange: (tab: AccountTab) => void;
-  showAdmin: boolean;
 }) {
-  const tabs = showAdmin ? [...BASE_TABS, { key: "admin" as const, label: "Admin" }] : BASE_TABS;
-  const gridClass = tabs.length === 4 ? "grid-cols-4" : "grid-cols-3";
-
   return (
     <div
       role="tablist"
       aria-label="Account sections"
-      className={`grid ${gridClass} gap-0 rounded-[22px] bg-[#0b0b0b] p-1`}
+      className="grid grid-cols-3 gap-0 rounded-[22px] bg-[#0b0b0b] p-1"
     >
-      {tabs.map((t) => (
+      {TABS.map((t) => (
         <button
           key={t.key}
           type="button"

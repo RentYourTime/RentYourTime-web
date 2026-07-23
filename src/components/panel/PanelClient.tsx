@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Wordmark } from "@/components/SiteNav";
 
 const TOKEN_KEY = "ryt-auth-token";
@@ -35,9 +36,13 @@ function formatDate(iso: string): string {
 }
 
 export function PanelClient() {
+  const searchParams = useSearchParams();
   const [gate, setGate] = useState<Gate>("checking");
   const [account, setAccount] = useState<PanelAccount | null>(null);
-  const [tab, setTab] = useState<Tab>("overview");
+  const [token, setToken] = useState("");
+  const [tab, setTab] = useState<Tab>(() =>
+    searchParams.get("tab") === "contribute" ? "contribute" : "overview"
+  );
 
   useEffect(() => {
     const stored = sessionStorage.getItem(TOKEN_KEY) || "";
@@ -45,6 +50,7 @@ export function PanelClient() {
       setGate("signedOut");
       return;
     }
+    setToken(stored);
     fetch("/api/me", { headers: { Authorization: `Bearer ${stored}` } })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => {
@@ -131,7 +137,7 @@ export function PanelClient() {
         <div className="flex-1 overflow-y-auto p-7">
           {tab === "overview" && <OverviewTab />}
           {tab === "usage" && <UsageTab />}
-          {tab === "contribute" && <ContributeTab />}
+          {tab === "contribute" && <ContributeTab token={token} />}
           {tab === "settings" && <SettingsTab account={account} />}
         </div>
       </main>
@@ -252,16 +258,145 @@ function UsageTab() {
   );
 }
 
-const PAST_CONTRIBUTIONS = [
-  ["Jul 1, 2026", "10% of rent", "$2.84"],
-  ["Jun 1, 2026", "10% of rent", "$3.10"],
-  ["May 1, 2026", "25% of rent", "$6.66"],
-] as const;
+interface Contribution {
+  id: string;
+  percentage: number;
+  amountCents: number;
+  currency: string;
+  status: "PENDING" | "PAID" | "FAILED" | "EXPIRED" | "REFUNDED";
+  createdAt: string;
+  paidAt: string | null;
+}
 
-function ContributeTab() {
-  const [pct, setPct] = useState(10);
-  const debt = 28.4;
-  const amount = (debt * pct) / 100;
+const PERCENTAGES = [5, 10, 25, 50, 75, 100] as const;
+
+const CHECKOUT_ERROR_MESSAGES: Record<string, string> = {
+  invalid_percentage: "Pick one of the percentages above.",
+  accrued_rent_unavailable:
+    "Your rent ledger isn’t syncing from the app yet, so there’s nothing to contribute from right now.",
+  server_not_configured: "Payments aren’t configured yet. Please try again later.",
+  payment_provider_error: "Couldn’t reach Stripe. Please try again in a moment.",
+};
+
+function formatCents(cents: number, currency: string): string {
+  try {
+    return (cents / 100).toLocaleString(undefined, { style: "currency", currency: currency.toUpperCase() });
+  } catch {
+    return `${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
+  }
+}
+
+function formatContributionDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function ContributeTab({ token }: { token: string }) {
+  const searchParams = useSearchParams();
+  const [pct, setPct] = useState<(typeof PERCENTAGES)[number]>(10);
+  const [loading, setLoading] = useState(true);
+  const [accruedRentCents, setAccruedRentCents] = useState<number | null>(null);
+  const [currency, setCurrency] = useState("usd");
+  const [contributions, setContributions] = useState<Contribution[]>([]);
+  const [totalContributedCents, setTotalContributedCents] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [pendingSessionStatus, setPendingSessionStatus] = useState<
+    "confirming" | "paid" | "cancelled" | null
+  >(searchParams.get("contribution") === "cancelled" ? "cancelled" : null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/contributions", { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error();
+      setAccruedRentCents(data.data.accruedRentCents);
+      setCurrency(data.data.currency);
+      setContributions(data.data.contributions);
+      setTotalContributedCents(data.data.totalContributedCents);
+    } catch {
+      setError("Couldn’t load your contributions.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!token) return;
+    void load();
+    // Re-runs only when the token first becomes available.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  // A same-tab return from Stripe Checkout: poll the local session status
+  // (never trust `?contribution=success` on its own) until it settles.
+  useEffect(() => {
+    if (!token) return;
+    const sessionId = searchParams.get("session_id");
+    if (searchParams.get("contribution") !== "success" || !sessionId) return;
+
+    setPendingSessionStatus("confirming");
+    let cancelled = false;
+    let attempts = 0;
+
+    const poll = async () => {
+      attempts += 1;
+      try {
+        const res = await fetch(`/api/contributions/session/${sessionId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (cancelled) return;
+        if (res.ok && data.ok && data.data.status === "PAID") {
+          setPendingSessionStatus("paid");
+          void load();
+          return;
+        }
+      } catch {
+        /* keep polling until the attempt budget runs out */
+      }
+      if (!cancelled && attempts < 8) setTimeout(poll, 1500);
+    };
+    void poll();
+
+    window.history.replaceState({}, "", "/panel?tab=contribute");
+    return () => {
+      cancelled = true;
+    };
+    // Runs once per session_id that appears in the URL on load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  async function onContribute() {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/contributions/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ percentage: pct }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        if (data.error === "amount_too_low") {
+          setError(
+            `That’s below Stripe’s minimum charge (${formatCents(data.minimumCents, data.currency)}) — try a higher percentage.`
+          );
+        } else {
+          setError(CHECKOUT_ERROR_MESSAGES[data.error] || "Something went wrong. Please try again.");
+        }
+        setBusy(false);
+        return;
+      }
+      window.location.assign(data.checkoutUrl);
+    } catch {
+      setError("Couldn’t start checkout. Please try again.");
+      setBusy(false);
+    }
+  }
+
+  const available = accruedRentCents !== null && accruedRentCents > 0;
+  const amountCents = available ? Math.round((accruedRentCents! * pct) / 100) : 0;
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_340px] lg:items-start">
@@ -274,43 +409,88 @@ function ContributeTab() {
           contribute a share of your accrued rent to keep it running and independent. Entirely
           optional.
         </p>
-        <div className="mt-6 flex items-center justify-between rounded-2xl bg-ink px-5 py-[18px]">
-          <span className="text-sm text-white/55">Accrued rent this month</span>
-          <span className="text-2xl font-bold tabular-nums">${debt.toFixed(2)}</span>
-        </div>
-        <div className="mb-2.5 mt-[22px] text-[13px] font-semibold text-white/50">
-          I’d like to contribute
-        </div>
-        <div className="flex flex-wrap gap-2.5">
-          {[5, 10, 25, 50, 75, 100].map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setPct(p)}
-              className={`h-[42px] rounded-[21px] border px-[22px] text-[15px] font-semibold tabular-nums transition-colors ${
-                p === pct
-                  ? "border-signal bg-signal text-sig-ink"
-                  : "border-signal/30 bg-signal/[0.08] text-signal"
-              }`}
-            >
-              {p}%
-            </button>
-          ))}
-        </div>
-        <div className="mt-[26px] flex flex-wrap items-center gap-[18px]">
-          <div>
-            <div className="text-xs text-white/45">That’s {pct}% of your rent</div>
-            <div className="text-[32px] font-bold tabular-nums text-signal">${amount.toFixed(2)}</div>
+
+        {pendingSessionStatus === "confirming" && (
+          <div className="mt-5 rounded-2xl bg-signal/[0.08] px-4 py-3 text-[13px] text-signal" role="status">
+            Payment is being confirmed…
           </div>
-          <button
-            type="button"
-            className="h-[52px] rounded-[26px] border-0 bg-signal px-7 text-[15px] font-semibold text-sig-ink transition-transform duration-150 ease-spring active:scale-[0.97]"
-          >
-            Contribute ${amount.toFixed(2)}
-          </button>
-        </div>
-        <div className="mt-3.5 text-xs text-white/40">
-          One-off. Doesn’t unlock features or change the app. See the{" "}
+        )}
+        {pendingSessionStatus === "paid" && (
+          <div className="mt-5 rounded-2xl bg-signal/[0.08] px-4 py-3 text-[13px] text-signal" role="status">
+            Thank you — your contribution is confirmed.
+          </div>
+        )}
+        {pendingSessionStatus === "cancelled" && (
+          <div className="mt-5 rounded-2xl bg-white/[0.05] px-4 py-3 text-[13px] text-white/60" role="status">
+            Checkout was cancelled — nothing was charged. You can try again below.
+          </div>
+        )}
+
+        {loading ? (
+          <div className="mt-6 h-14 animate-pulse rounded-2xl bg-white/[0.04]" />
+        ) : (
+          <div className="mt-6 flex items-center justify-between rounded-2xl bg-ink px-5 py-[18px]">
+            <span className="text-sm text-white/55">Accrued rent this month</span>
+            <span className="text-2xl font-bold tabular-nums">
+              {available ? formatCents(accruedRentCents!, currency) : "—"}
+            </span>
+          </div>
+        )}
+
+        {!loading && !available ? (
+          <p className="mt-4 text-sm leading-[1.55] text-white/45">
+            Your rent ledger isn’t syncing from the app yet, so there’s nothing to contribute from
+            right now — check back once it does.
+          </p>
+        ) : (
+          <>
+            <div className="mb-2.5 mt-[22px] text-[13px] font-semibold text-white/50">
+              I’d like to contribute
+            </div>
+            <div className="flex flex-wrap gap-2.5">
+              {PERCENTAGES.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPct(p)}
+                  className={`h-[42px] rounded-[21px] border px-[22px] text-[15px] font-semibold tabular-nums transition-colors ${
+                    p === pct
+                      ? "border-signal bg-signal text-sig-ink"
+                      : "border-signal/30 bg-signal/[0.08] text-signal"
+                  }`}
+                >
+                  {p}%
+                </button>
+              ))}
+            </div>
+            <div className="mt-[26px] flex flex-wrap items-center gap-[18px]">
+              <div>
+                <div className="text-xs text-white/45">That’s {pct}% of your rent</div>
+                <div className="text-[32px] font-bold tabular-nums text-signal">
+                  {formatCents(amountCents, currency)}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onContribute}
+                disabled={busy}
+                className="h-[52px] rounded-[26px] border-0 bg-signal px-7 text-[15px] font-semibold text-sig-ink transition-transform duration-150 ease-spring active:scale-[0.97] disabled:cursor-wait disabled:opacity-60"
+              >
+                {busy ? "Redirecting to Stripe…" : `Contribute ${formatCents(amountCents, currency)}`}
+              </button>
+            </div>
+          </>
+        )}
+
+        {error && (
+          <p className="mt-3.5 text-[13px] text-[#ff8a84]" role="alert">
+            {error}
+          </p>
+        )}
+
+        <div className="mt-3.5 text-xs leading-[1.5] text-white/40">
+          One-time optional contribution. Does not unlock features. Does not reduce or settle
+          virtual rent. See the{" "}
           <Link href="/terms" className="text-signal">
             Terms
           </Link>
@@ -319,23 +499,38 @@ function ContributeTab() {
       </div>
       <div className="rounded-[24px] bg-card p-[26px]">
         <div className="mb-4 text-base font-semibold">Your contributions</div>
-        <div className="flex flex-col gap-3">
-          {PAST_CONTRIBUTIONS.map(([date, note, amt]) => (
-            <div
-              key={date}
-              className="flex items-center justify-between border-b border-white/[0.06] pb-3 last:border-0"
-            >
-              <div>
-                <div className="text-sm">{date}</div>
-                <div className="text-xs text-white/40">{note}</div>
+        {loading ? (
+          <div className="flex flex-col gap-3">
+            <div className="h-10 animate-pulse rounded-xl bg-white/[0.04]" />
+            <div className="h-10 animate-pulse rounded-xl bg-white/[0.04]" />
+          </div>
+        ) : contributions.length === 0 ? (
+          <p className="text-sm text-white/40">You haven’t contributed yet.</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {contributions.map((c) => (
+              <div
+                key={c.id}
+                className="flex items-center justify-between border-b border-white/[0.06] pb-3 last:border-0"
+              >
+                <div>
+                  <div className="text-sm">{formatContributionDate(c.paidAt ?? c.createdAt)}</div>
+                  <div className="text-xs text-white/40">
+                    {c.percentage}% of rent{c.status !== "PAID" ? ` · ${c.status.toLowerCase()}` : ""}
+                  </div>
+                </div>
+                <b className={`font-semibold tabular-nums ${c.status === "PAID" ? "text-signal" : "text-white/40"}`}>
+                  {formatCents(c.amountCents, c.currency)}
+                </b>
               </div>
-              <b className="font-semibold tabular-nums text-signal">{amt}</b>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
         <div className="mt-5 rounded-2xl bg-ink p-4 text-center">
           <div className="text-xs text-white/45">Contributed so far</div>
-          <div className="text-2xl font-bold tabular-nums">$12.60</div>
+          <div className="text-2xl font-bold tabular-nums">
+            {loading ? "—" : formatCents(totalContributedCents, currency)}
+          </div>
         </div>
       </div>
     </div>

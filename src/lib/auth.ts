@@ -21,6 +21,8 @@ export interface UserRow {
   updated_at: string | null;
   apple_original_transaction_id: string | null;
   apple_account_token: string | null;
+  accrued_rent_cents: number | null;
+  accrued_rent_currency: string;
 }
 
 export type { SubscriptionRow };

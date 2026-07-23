@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { PanelClient } from "@/components/panel/PanelClient";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Your dashboard",
@@ -7,5 +10,9 @@ export const metadata: Metadata = {
 };
 
 export default function PanelPage() {
-  return <PanelClient />;
+  return (
+    <Suspense fallback={null}>
+      <PanelClient />
+    </Suspense>
+  );
 }

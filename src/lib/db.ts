@@ -140,6 +140,32 @@ export function getDb(): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_email_verification_user ON email_verification_tokens(user_id);
     CREATE INDEX IF NOT EXISTS idx_email_verification_expires ON email_verification_tokens(expires_at);
+
+    -- Voluntary one-time "Support the project" payments (docs/CONTRIBUTIONS.md).
+    -- Entirely separate from subscriptions/entitlements — never grants Pro,
+    -- never touches the subscriptions table.
+    CREATE TABLE IF NOT EXISTS contributions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      percentage INTEGER NOT NULL,
+      accrued_rent_cents INTEGER NOT NULL,
+      amount_cents INTEGER NOT NULL,
+      currency TEXT NOT NULL,
+      status TEXT NOT NULL,
+      stripe_checkout_session_id TEXT UNIQUE,
+      stripe_payment_intent_id TEXT UNIQUE,
+      stripe_event_id TEXT,
+      refunded_amount_cents INTEGER,
+      created_at TEXT NOT NULL,
+      paid_at TEXT,
+      failed_at TEXT,
+      refunded_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_contributions_user_id ON contributions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_contributions_status ON contributions(status);
+    CREATE INDEX IF NOT EXISTS idx_contributions_created_at ON contributions(created_at);
+    CREATE INDEX IF NOT EXISTS idx_contributions_checkout_session ON contributions(stripe_checkout_session_id);
+    CREATE INDEX IF NOT EXISTS idx_contributions_payment_intent ON contributions(stripe_payment_intent_id);
   `);
 
   // Migration: add waitlist.notified to older databases. Existing rows are
@@ -206,6 +232,11 @@ export function getDb(): Database.Database {
     "apple_original_transaction_id TEXT"
   );
   addColumnIfMissing(db, "users", "apple_account_token", "apple_account_token TEXT");
+  // Server-known accrued rent, in cents, for the "Support the project" flow
+  // (docs/CONTRIBUTIONS.md). NULL until a real on-device usage-sync exists —
+  // no request handler may ever set this from client input.
+  addColumnIfMissing(db, "users", "accrued_rent_cents", "accrued_rent_cents INTEGER");
+  addColumnIfMissing(db, "users", "accrued_rent_currency", "accrued_rent_currency TEXT NOT NULL DEFAULT 'usd'");
 
   addColumnIfMissing(db, "subscriptions", "source", "source TEXT NOT NULL DEFAULT 'STRIPE'");
   addColumnIfMissing(db, "subscriptions", "provider_customer_id", "provider_customer_id TEXT");

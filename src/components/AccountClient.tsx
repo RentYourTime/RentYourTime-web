@@ -8,7 +8,6 @@ import { AccountOverview, type OverviewUser, type ResendStatus } from "@/compone
 import { SubscriptionCard, type SubscriptionData } from "@/components/SubscriptionCard";
 import { BillingHistory, type InvoicesState } from "@/components/BillingHistory";
 import { AccountTabs, type AccountTab } from "@/components/AccountTabs";
-import { AdminWaitlistPanel } from "@/components/AdminWaitlistPanel";
 import { Reveal } from "@/components/motion/Reveal";
 import { GlowLayer } from "@/components/motion/GlowLayer";
 import { ScrollProgressBar } from "@/components/motion/ScrollProgressBar";
@@ -191,9 +190,6 @@ export function AccountClient() {
   }
 
   const statusColor = status.error ? "text-[#ff8a84]" : "text-white/50";
-  const isAdmin = account?.role === "ADMIN";
-  const showAdminTab = tab === "admin" && isAdmin;
-
   return (
     <div className="relative [overflow-x:clip]">
       <GlowLayer
@@ -222,7 +218,7 @@ export function AccountClient() {
           className="flex justify-center px-6 py-[70px] max-[600px]:px-[18px] max-[600px]:py-9"
         >
           <div
-            className={`flex w-full flex-col gap-5 ${showAdminTab ? "max-w-[1100px]" : "max-w-[560px]"}`}
+            className="flex w-full max-w-[560px] flex-col gap-5"
           >
             {!account ? (
               <Reveal
@@ -247,7 +243,7 @@ export function AccountClient() {
             ) : (
               <>
                 <Reveal delayMs={0}>
-                  <AccountTabs tab={tab} onTabChange={setTab} showAdmin={isAdmin} />
+                  <AccountTabs tab={tab} onTabChange={setTab} />
                 </Reveal>
 
                 {tab === "overview" && (
@@ -280,11 +276,6 @@ export function AccountClient() {
                       refreshing={invoicesRefreshing}
                       onRefresh={() => loadInvoices(token)}
                     />
-                  </Reveal>
-                )}
-                {showAdminTab && (
-                  <Reveal key="admin" delayMs={68}>
-                    <AdminWaitlistPanel token={token} />
                   </Reveal>
                 )}
                 <div

@@ -14,6 +14,14 @@ import {
   markMostRecentInvoiceRefunded,
   upsertInvoiceRecord,
 } from "@/lib/billing";
+import {
+  applyRefund,
+  contributionSessionMetadata,
+  getContributionByPaymentIntentId,
+  markContributionExpired,
+  markContributionFailed,
+  settleContributionFromSession,
+} from "@/lib/contributions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -147,33 +155,45 @@ export async function POST(req: Request) {
 
     if (type === "checkout.session.completed") {
       const object = event.data.object as Stripe.Checkout.Session;
-      const userId = String(object.client_reference_id ?? object.metadata?.user_id ?? "");
-      if (userId) {
-        const custId = customerId(object.customer);
-        if (custId) {
-          db.prepare("UPDATE users SET stripe_customer_id = ? WHERE id = ?").run(custId, userId);
-        }
-        if (object.subscription) {
-          // Seed a minimal row so Pro can appear right away; the
-          // customer.subscription.* event that follows is the real
-          // authority on status/period end/plan and overwrites this.
-          const status = object.payment_status === "paid" ? "active" : "inactive";
-          db.prepare(
-            `INSERT OR IGNORE INTO subscriptions
-               (user_id, stripe_subscription_id, status, current_period_end, last_event_created, updated_at,
-                source, provider_customer_id, provider_subscription_id, plan, auto_renew)
-             VALUES (?, ?, ?, NULL, ?, ?, 'STRIPE', ?, ?, 'UNKNOWN', 1)`
-          ).run(
-            userId,
-            String(object.subscription),
-            status,
-            event.created,
-            now(),
-            custId,
-            String(object.subscription)
-          );
+      if (object.metadata?.kind === "contribution") {
+        settleContributionFromSession(object, event.id);
+      } else {
+        const userId = String(object.client_reference_id ?? object.metadata?.user_id ?? "");
+        if (userId) {
+          const custId = customerId(object.customer);
+          if (custId) {
+            db.prepare("UPDATE users SET stripe_customer_id = ? WHERE id = ?").run(custId, userId);
+          }
+          if (object.subscription) {
+            // Seed a minimal row so Pro can appear right away; the
+            // customer.subscription.* event that follows is the real
+            // authority on status/period end/plan and overwrites this.
+            const status = object.payment_status === "paid" ? "active" : "inactive";
+            db.prepare(
+              `INSERT OR IGNORE INTO subscriptions
+                 (user_id, stripe_subscription_id, status, current_period_end, last_event_created, updated_at,
+                  source, provider_customer_id, provider_subscription_id, plan, auto_renew)
+               VALUES (?, ?, ?, NULL, ?, ?, 'STRIPE', ?, ?, 'UNKNOWN', 1)`
+            ).run(
+              userId,
+              String(object.subscription),
+              status,
+              event.created,
+              now(),
+              custId,
+              String(object.subscription)
+            );
+          }
         }
       }
+    } else if (type === "checkout.session.async_payment_succeeded") {
+      settleContributionFromSession(event.data.object as Stripe.Checkout.Session, event.id);
+    } else if (type === "checkout.session.async_payment_failed") {
+      const meta = contributionSessionMetadata(event.data.object as Stripe.Checkout.Session);
+      if (meta) markContributionFailed({ id: meta.contributionId, stripeEventId: event.id });
+    } else if (type === "checkout.session.expired") {
+      const meta = contributionSessionMetadata(event.data.object as Stripe.Checkout.Session);
+      if (meta) markContributionExpired({ id: meta.contributionId, stripeEventId: event.id });
     } else if (
       type === "customer.subscription.created" ||
       type === "customer.subscription.updated" ||
@@ -257,36 +277,55 @@ export async function POST(req: Request) {
         }
       }
     } else if (type === "charge.succeeded") {
+      // A contribution charge already known by payment_intent (i.e. its
+      // checkout.session.completed already landed) is skipped here — it
+      // must never be misattached to an unrelated subscription invoice
+      // row that's still waiting on payment linkage. If this event races
+      // ahead of checkout.session.completed, the charge is briefly
+      // unlinked from either — cosmetic only (see docs/CONTRIBUTIONS.md),
+      // never affects amounts, Pro status, or contribution PAID status.
       const object = event.data.object as Stripe.Charge;
-      const userId = findUserIdByCustomer(db, customerId(object.customer));
+      const chargePi = object.payment_intent;
+      const chargePiId = chargePi ? (typeof chargePi === "string" ? chargePi : chargePi.id) : null;
+      const isKnownContribution = chargePiId ? !!getContributionByPaymentIntentId(chargePiId) : false;
+      const userId = isKnownContribution ? "" : findUserIdByCustomer(db, customerId(object.customer));
       if (userId) {
         attachPaymentToInvoice(userId, "provider_payment_id", object.id);
-        const pi = object.payment_intent;
-        if (pi) {
-          attachPaymentToInvoice(
-            userId,
-            "provider_payment_intent_id",
-            typeof pi === "string" ? pi : pi.id
-          );
+        if (chargePiId) {
+          attachPaymentToInvoice(userId, "provider_payment_intent_id", chargePiId);
         }
       }
     } else if (
       type === "payment_intent.succeeded" ||
       type === "payment_intent.payment_failed"
     ) {
+      // PaymentIntents created via our contribution Checkout Sessions carry
+      // metadata.kind (set through payment_intent_data.metadata) — skip
+      // invoice-linkage entirely for those, same reasoning as charge.succeeded above.
       const object = event.data.object as Stripe.PaymentIntent;
-      const userId = findUserIdByCustomer(db, customerId(object.customer));
-      if (userId) {
-        attachPaymentToInvoice(userId, "provider_payment_intent_id", object.id);
+      if (object.metadata?.kind !== "contribution") {
+        const userId = findUserIdByCustomer(db, customerId(object.customer));
+        if (userId) {
+          attachPaymentToInvoice(userId, "provider_payment_intent_id", object.id);
+        }
       }
     } else if (type === "charge.refunded") {
-      // Only a full refund revokes Pro; a partial refund (e.g. a
-      // goodwill credit) leaves the subscription status untouched.
-      // Correlated by customer rather than invoice: this account only
-      // ever creates subscription-mode Checkout charges, so every charge
-      // against a customer with a subscription row is that subscription's.
       const object = event.data.object as Stripe.Charge;
-      if (object.refunded) {
+      const refundPi = object.payment_intent;
+      const refundPiId = refundPi ? (typeof refundPi === "string" ? refundPi : refundPi.id) : null;
+      const contribution = refundPiId ? getContributionByPaymentIntentId(refundPiId) : null;
+
+      if (contribution) {
+        if (contribution.status === "PAID") {
+          applyRefund({ id: contribution.id, refundedAmountCents: object.amount_refunded, stripeEventId: event.id });
+        }
+      } else if (object.refunded) {
+        // Only a full refund revokes Pro; a partial refund (e.g. a
+        // goodwill credit) leaves the subscription status untouched.
+        // Correlated by customer rather than invoice: this account only
+        // ever creates subscription-mode Checkout charges (contributions
+        // are excluded above), so every remaining charge against a
+        // customer with a subscription row is that subscription's.
         const custId = customerId(object.customer);
         if (custId) {
           db.prepare(

@@ -27,6 +27,9 @@ existing deployment.
 Point Stripe's webhook at `https://<domain>/api/webhook` and subscribe to:
 
 - `checkout.session.completed`
+- `checkout.session.async_payment_succeeded`
+- `checkout.session.async_payment_failed`
+- `checkout.session.expired`
 - `customer.subscription.created`
 - `customer.subscription.updated`
 - `customer.subscription.deleted`
@@ -45,7 +48,10 @@ already selected to the **existing** endpoint's event list — never create a se
 endpoint. The `invoice.*`/`charge.*`/`payment_intent.*` events populate billing
 history (`billing_records`) — see [`docs/BILLING_PORTAL.md`](./BILLING_PORTAL.md)
 for what each one does and why payment-id linkage is best-effort in the pinned API
-version.
+version. The three `checkout.session.*` events beyond `completed` — plus the
+`checkout.session.completed`/`charge.refunded` branches when their metadata says
+`kind: "contribution"` — belong to the separate one-time "Support the project" flow;
+see [`docs/CONTRIBUTIONS.md`](./CONTRIBUTIONS.md).
 
 ### How it works
 
