@@ -440,7 +440,10 @@ function ContributeTab({ token }: { token: string }) {
         {!loading && !available ? (
           <p className="mt-4 text-sm leading-[1.55] text-white/45">
             Your rent ledger isn’t syncing from the app yet, so there’s nothing to contribute from
-            right now — check back once it does.
+            right now — check back once it does. Curious what it looks like?{" "}
+            <Link href="/demo/support" className="text-signal">
+              View a demo →
+            </Link>
           </p>
         ) : (
           <>
