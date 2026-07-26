@@ -13,6 +13,7 @@ import { getDb } from "@/lib/db";
 import {
   getActiveSubscriptionForUser,
   getSubscriptionForUser,
+  grantFounderPro,
   serializeSubscription,
   subscriptionGrantsPro,
   upsertAppleSubscription,
@@ -212,5 +213,123 @@ describe("subscriptions", () => {
       eventId: "evt_old",
     });
     expect(getSubscriptionForUser(userId)?.status).toBe("active");
+  });
+});
+
+describe("grantFounderPro (RentYourTime Founder Program)", () => {
+  it("grants MANUAL Pro to a user with no existing subscription", () => {
+    const userId = makeUser();
+    grantFounderPro({ userId, isLifetime: false, endsAtSeconds: Math.floor(Date.now() / 1000) + 3600 });
+    const sub = getSubscriptionForUser(userId)!;
+    expect(sub.source).toBe("MANUAL");
+    expect(subscriptionGrantsPro(sub)).toBe(true);
+  });
+
+  it("lifetime (isLifetime) stores a null current_period_end and never expires", () => {
+    const userId = makeUser();
+    grantFounderPro({ userId, isLifetime: true, endsAtSeconds: null });
+    const sub = getSubscriptionForUser(userId)!;
+    expect(sub.current_period_end).toBeNull();
+    expect(subscriptionGrantsPro(sub)).toBe(true);
+  });
+
+  it("CRITICAL: never overwrites an active STRIPE subscription's source — only extends its end date", () => {
+    const userId = makeUser();
+    const stripeEnd = Math.floor(Date.now() / 1000) + 30 * 24 * 3600; // 30 days out
+    upsertStripeSubscription({
+      userId,
+      subscriptionId: "sub_existing",
+      customerId: "cus_existing",
+      status: "active",
+      currentPeriodEnd: stripeEnd,
+      productId: "prod_pro",
+      priceId: "price_monthly",
+      plan: "MONTHLY",
+      autoRenew: true,
+      startedAt: null,
+      canceledAt: null,
+      trialEndsAt: null,
+      environment: "test",
+      eventCreated: 1,
+      eventId: "evt_existing",
+    });
+
+    // A Founder First purchase (1 year) grants less than the user already has via Stripe.
+    const founderEnd = Math.floor(Date.now() / 1000) + 5 * 24 * 3600; // only 5 days
+    grantFounderPro({ userId, isLifetime: false, endsAtSeconds: founderEnd });
+
+    const sub = getSubscriptionForUser(userId)!;
+    expect(sub.source).toBe("STRIPE"); // never clobbered
+    expect(sub.provider_subscription_id).toBe("sub_existing"); // untouched
+    expect(sub.current_period_end).toBe(stripeEnd); // the LATER date wins, not the founder one
+  });
+
+  it("extends a STRIPE subscription's end date when the Founder grant is later", () => {
+    const userId = makeUser();
+    const stripeEnd = Math.floor(Date.now() / 1000) + 5 * 24 * 3600;
+    upsertStripeSubscription({
+      userId,
+      subscriptionId: "sub_short",
+      customerId: "cus_short",
+      status: "active",
+      currentPeriodEnd: stripeEnd,
+      productId: null,
+      priceId: null,
+      plan: "MONTHLY",
+      autoRenew: true,
+      startedAt: null,
+      canceledAt: null,
+      trialEndsAt: null,
+      environment: "test",
+      eventCreated: 1,
+      eventId: "evt_short",
+    });
+
+    const founderEnd = Math.floor(Date.now() / 1000) + 365 * 24 * 3600; // a year out
+    grantFounderPro({ userId, isLifetime: false, endsAtSeconds: founderEnd });
+
+    const sub = getSubscriptionForUser(userId)!;
+    expect(sub.source).toBe("STRIPE"); // still never clobbered
+    expect(sub.current_period_end).toBe(founderEnd); // extended to the later date
+  });
+
+  it("a lifetime Founder Black grant wins even over an active STRIPE subscription's end date", () => {
+    const userId = makeUser();
+    upsertStripeSubscription({
+      userId,
+      subscriptionId: "sub_lifetime_test",
+      customerId: "cus_lifetime_test",
+      status: "active",
+      currentPeriodEnd: Math.floor(Date.now() / 1000) + 3600,
+      productId: null,
+      priceId: null,
+      plan: "MONTHLY",
+      autoRenew: true,
+      startedAt: null,
+      canceledAt: null,
+      trialEndsAt: null,
+      environment: "test",
+      eventCreated: 1,
+      eventId: "evt_lifetime_test",
+    });
+
+    grantFounderPro({ userId, isLifetime: true, endsAtSeconds: null });
+
+    const sub = getSubscriptionForUser(userId)!;
+    expect(sub.source).toBe("STRIPE"); // source still untouched
+    expect(sub.current_period_end).toBeNull(); // but now never expires
+  });
+
+  it("extends an existing MANUAL grant (e.g. a second Founder tier) to the later date", () => {
+    const userId = makeUser();
+    const firstEnd = Math.floor(Date.now() / 1000) + 30 * 24 * 3600;
+    grantFounderPro({ userId, isLifetime: false, endsAtSeconds: firstEnd });
+
+    const laterEnd = firstEnd + 365 * 24 * 3600;
+    grantFounderPro({ userId, isLifetime: false, endsAtSeconds: laterEnd });
+
+    const sub = getSubscriptionForUser(userId)!;
+    expect(sub.source).toBe("MANUAL");
+    expect(sub.current_period_end).toBe(laterEnd);
   });
 });

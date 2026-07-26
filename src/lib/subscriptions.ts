@@ -269,3 +269,65 @@ export function upsertAppleSubscription(params: UpsertAppleSubscriptionParams): 
       params.eventId
     );
 }
+
+export interface GrantFounderProParams {
+  userId: string;
+  /** Lifetime always wins over any finite end date, on either side of the merge. */
+  isLifetime: boolean;
+  /** Ignored when `isLifetime` is true. */
+  endsAtSeconds: number | null;
+}
+
+/**
+ * Grants Pro from a confirmed Founder Program purchase (src/lib/founders.ts).
+ * Unlike Contributions — which never touch this table — a Founder tier's
+ * headline benefit *is* Pro access, so it has to land here to actually work
+ * (`subscriptionGrantsPro()` is what every entitlement check reads).
+ *
+ * Critical safety rule: this must never clobber an existing STRIPE/APPLE
+ * subscription's `source`. Doing so would hide the "Manage subscription"
+ * button (`SubscriptionCard` only renders it for `source === "STRIPE"`) from
+ * someone Stripe is still actively billing. So a currently-Pro STRIPE/APPLE
+ * row only ever gets its `current_period_end` *extended* (lifetime wins,
+ * else the later of the two dates) — every other column stays untouched. A
+ * `MANUAL` row (from an earlier Founder purchase, or none at all) is safe to
+ * upsert normally, still extending rather than shortening any existing window.
+ */
+export function grantFounderPro(params: GrantFounderProParams): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const existing = getSubscriptionForUser(params.userId);
+  let finalEnd: number | null = params.isLifetime ? null : params.endsAtSeconds;
+
+  const existingGrantsPro = subscriptionGrantsPro(existing);
+  const existingIsProviderManaged =
+    existingGrantsPro && (existing!.source === "STRIPE" || existing!.source === "APPLE");
+
+  if (existingIsProviderManaged) {
+    const existingEnd = existing!.current_period_end; // null/0 = never expires
+    if (!existingEnd || existingEnd === 0) finalEnd = null; // already lifetime — keep it
+    else if (finalEnd !== null) finalEnd = Math.max(existingEnd, finalEnd);
+    // finalEnd === null here (Founder lifetime) already wins outright.
+    db.prepare(
+      "UPDATE subscriptions SET current_period_end = ?, updated_at = ? WHERE user_id = ?"
+    ).run(finalEnd, now, params.userId);
+    return;
+  }
+
+  if (existingGrantsPro && existing!.source === "MANUAL") {
+    const existingEnd = existing!.current_period_end;
+    if (!existingEnd || existingEnd === 0) finalEnd = null;
+    else if (finalEnd !== null) finalEnd = Math.max(existingEnd, finalEnd);
+  }
+
+  db.prepare(
+    `INSERT INTO subscriptions
+       (user_id, status, current_period_end, last_event_created, updated_at, source, plan, auto_renew)
+     VALUES (?, 'active', ?, 0, ?, 'MANUAL', 'UNKNOWN', 1)
+     ON CONFLICT(user_id) DO UPDATE SET
+       status = 'active',
+       current_period_end = excluded.current_period_end,
+       source = 'MANUAL',
+       updated_at = excluded.updated_at`
+  ).run(params.userId, finalEnd, now);
+}

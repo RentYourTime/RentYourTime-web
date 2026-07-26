@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Wordmark } from "@/components/SiteNav";
+import { FOUNDER_TIER_CONTENT, type FounderTierSlug } from "@/lib/founderContent";
 
 const TOKEN_KEY = "ryt-auth-token";
 
 type Gate = "checking" | "signedOut" | "granted";
-type Tab = "overview" | "usage" | "contribute" | "settings";
+type Tab = "overview" | "usage" | "contribute" | "founder" | "settings";
 
 interface PanelAccount {
   email: string;
@@ -21,6 +22,7 @@ const NAV: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "usage", label: "Usage & apps" },
   { key: "contribute", label: "Support the project" },
+  { key: "founder", label: "Founder Status" },
   { key: "settings", label: "Settings" },
 ];
 
@@ -28,8 +30,11 @@ const TITLES: Record<Tab, string> = {
   overview: "Overview",
   usage: "Usage & apps",
   contribute: "Support the project",
+  founder: "Founder Status",
   settings: "Settings",
 };
+
+const VALID_TABS: readonly Tab[] = ["overview", "usage", "contribute", "founder", "settings"];
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "long" });
@@ -40,9 +45,10 @@ export function PanelClient() {
   const [gate, setGate] = useState<Gate>("checking");
   const [account, setAccount] = useState<PanelAccount | null>(null);
   const [token, setToken] = useState("");
-  const [tab, setTab] = useState<Tab>(() =>
-    searchParams.get("tab") === "contribute" ? "contribute" : "overview"
-  );
+  const [tab, setTab] = useState<Tab>(() => {
+    const requested = searchParams.get("tab");
+    return VALID_TABS.includes(requested as Tab) ? (requested as Tab) : "overview";
+  });
 
   useEffect(() => {
     const stored = sessionStorage.getItem(TOKEN_KEY) || "";
@@ -138,6 +144,7 @@ export function PanelClient() {
           {tab === "overview" && <OverviewTab />}
           {tab === "usage" && <UsageTab />}
           {tab === "contribute" && <ContributeTab token={token} />}
+          {tab === "founder" && <FounderStatusTab token={token} />}
           {tab === "settings" && <SettingsTab account={account} />}
         </div>
       </main>
@@ -638,6 +645,403 @@ function ContributeTab({ token }: { token: string }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+interface FounderBlackKit {
+  fullName: string | null;
+  shippingAddress: string | null;
+  country: string | null;
+  shirtSize: string | null;
+  cardStatus: "pending" | "prepared" | "shipped";
+  certificateStatus: "pending" | "prepared" | "shipped";
+  letterStatus: "pending" | "prepared" | "shipped";
+  shirtStatus: "pending" | "prepared" | "shipped";
+  trackingNumber: string | null;
+  shippedAt: string | null;
+}
+
+interface FounderPurchase {
+  id: string;
+  tierSlug: string;
+  tierName: string;
+  founderNumber: number | null;
+  founderNumberFormatted: string | null;
+  paymentStatus: "PENDING" | "PAID" | "FAILED" | "EXPIRED" | "REFUNDED";
+  fulfillmentStatus: string;
+  purchasedAt: string;
+  proStartsAt: string | null;
+  proEndsAt: string | null;
+  isLifetimePro: boolean;
+  discordSyncStatus: "pending" | "assigned" | "failed" | "removed";
+  blackKit: FounderBlackKit | null;
+}
+
+const KIT_STATUS_LABEL: Record<string, string> = { pending: "Pending", prepared: "Prepared", shipped: "Shipped" };
+const SHIRT_SIZES = ["XS", "S", "M", "L", "XL", "XXL"];
+
+function BlackKitForm({ purchase, token, onSubmitted }: { purchase: FounderPurchase; token: string; onSubmitted: () => void }) {
+  const [fullName, setFullName] = useState("");
+  const [shippingAddress, setShippingAddress] = useState("");
+  const [country, setCountry] = useState("");
+  const [shirtSize, setShirtSize] = useState("M");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/founders/black-kit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ purchaseId: purchase.id, fullName, shippingAddress, country, shirtSize }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error();
+      onSubmitted();
+    } catch {
+      setError("Couldn’t save your shipping details. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-3 rounded-2xl bg-ink p-4">
+      <div className="text-[13px] font-semibold text-white/60">Shipping details for your Founder Black kit</div>
+      <input
+        value={fullName}
+        onChange={(e) => setFullName(e.target.value)}
+        placeholder="Full name"
+        required
+        maxLength={200}
+        className="h-11 rounded-xl border-0 bg-white/[0.07] px-4 text-sm text-white outline-none focus:shadow-[0_0_0_1px_var(--signal)]"
+      />
+      <textarea
+        value={shippingAddress}
+        onChange={(e) => setShippingAddress(e.target.value)}
+        placeholder="Shipping address"
+        required
+        maxLength={500}
+        rows={3}
+        className="rounded-xl border-0 bg-white/[0.07] px-4 py-2.5 text-sm text-white outline-none focus:shadow-[0_0_0_1px_var(--signal)]"
+      />
+      <div className="grid grid-cols-2 gap-3">
+        <input
+          value={country}
+          onChange={(e) => setCountry(e.target.value)}
+          placeholder="Country"
+          required
+          maxLength={100}
+          className="h-11 rounded-xl border-0 bg-white/[0.07] px-4 text-sm text-white outline-none focus:shadow-[0_0_0_1px_var(--signal)]"
+        />
+        <select
+          value={shirtSize}
+          onChange={(e) => setShirtSize(e.target.value)}
+          className="h-11 rounded-xl border-0 bg-white/[0.07] px-4 text-sm text-white outline-none focus:shadow-[0_0_0_1px_var(--signal)]"
+        >
+          {SHIRT_SIZES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </div>
+      {error && (
+        <p className="text-[13px] text-[#ff8a84]" role="alert">
+          {error}
+        </p>
+      )}
+      <button
+        type="submit"
+        disabled={busy}
+        className="h-11 rounded-xl border-0 bg-signal text-sm font-semibold text-sig-ink disabled:cursor-wait disabled:opacity-60"
+      >
+        {busy ? "Saving…" : "Save shipping details"}
+      </button>
+    </form>
+  );
+}
+
+function FounderPurchaseCard({ purchase, token, onRefresh }: { purchase: FounderPurchase; token: string; onRefresh: () => void }) {
+  const content = FOUNDER_TIER_CONTENT[purchase.tierSlug as FounderTierSlug];
+  const isBlack = purchase.tierSlug === "founder-black";
+
+  return (
+    <div className="rounded-[24px] bg-card p-[26px]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-bold tracking-[0.08em]" style={{ color: content?.accent ?? "#00e676" }}>
+            {purchase.tierName.toUpperCase()} {purchase.founderNumberFormatted ?? ""}
+          </div>
+          <div className="mt-1 text-[13px] text-white/45">
+            Purchased {formatContributionDate(purchase.purchasedAt)}
+          </div>
+        </div>
+        <span
+          className={`inline-flex h-7 items-center rounded-full px-3 text-xs font-bold ${
+            purchase.paymentStatus === "PAID"
+              ? "bg-signal/[0.12] text-signal"
+              : purchase.paymentStatus === "REFUNDED"
+                ? "bg-white/10 text-white/50"
+                : "bg-[rgba(255,193,7,0.14)] text-[#ffca28]"
+          }`}
+        >
+          {purchase.paymentStatus}
+        </span>
+      </div>
+
+      <div className="mt-4 flex flex-col text-[14px]">
+        <div className="flex items-center justify-between border-b border-white/[0.06] py-2.5">
+          <span className="text-white/40">Pro access</span>
+          <span>{purchase.isLifetimePro ? "Lifetime" : purchase.proEndsAt ? `Until ${formatContributionDate(purchase.proEndsAt)}` : "—"}</span>
+        </div>
+        <div className="flex items-center justify-between border-b border-white/[0.06] py-2.5">
+          <span className="text-white/40">Discord role sync</span>
+          <span className="capitalize">{purchase.discordSyncStatus}</span>
+        </div>
+        {isBlack && (
+          <div className="flex items-center justify-between py-2.5">
+            <span className="text-white/40">Kit fulfillment</span>
+            <span>{purchase.fulfillmentStatus.replace("_", " ").toLowerCase()}</span>
+          </div>
+        )}
+      </div>
+
+      {content && (
+        <details className="mt-4">
+          <summary className="cursor-pointer text-[13px] font-semibold text-white/50">Your benefits</summary>
+          <ul className="mt-2.5 flex flex-col gap-1.5 text-[13px] leading-[1.5] text-white/60">
+            {content.benefits.map((b) => (
+              <li key={b} className="flex gap-2">
+                <span className="text-signal">✓</span>
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {isBlack && purchase.paymentStatus === "PAID" && (
+        <>
+          {!purchase.blackKit?.shippingAddress ? (
+            <BlackKitForm purchase={purchase} token={token} onSubmitted={onRefresh} />
+          ) : (
+            <div className="mt-4 rounded-2xl bg-ink p-4">
+              <div className="mb-2.5 text-[13px] font-semibold text-white/60">Founder Black kit status</div>
+              <div className="grid grid-cols-2 gap-2 text-[13px] text-white/60 sm:grid-cols-4">
+                <div>
+                  Card <b className="block text-white">{KIT_STATUS_LABEL[purchase.blackKit.cardStatus]}</b>
+                </div>
+                <div>
+                  Certificate <b className="block text-white">{KIT_STATUS_LABEL[purchase.blackKit.certificateStatus]}</b>
+                </div>
+                <div>
+                  Letter <b className="block text-white">{KIT_STATUS_LABEL[purchase.blackKit.letterStatus]}</b>
+                </div>
+                <div>
+                  Shirt <b className="block text-white">{KIT_STATUS_LABEL[purchase.blackKit.shirtStatus]}</b>
+                </div>
+              </div>
+              {purchase.blackKit.trackingNumber && (
+                <div className="mt-2.5 text-[13px] text-white/60">
+                  Tracking: <code className="text-white">{purchase.blackKit.trackingNumber}</code>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function FounderStatusTab({ token }: { token: string }) {
+  const searchParams = useSearchParams();
+  const [loading, setLoading] = useState(true);
+  const [purchases, setPurchases] = useState<FounderPurchase[]>([]);
+  const [profile, setProfile] = useState({ displayName: "", consentDirectory: false, consentCredits: false, consentCaseStudy: false });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [pendingSessionStatus, setPendingSessionStatus] = useState<"confirming" | "paid" | null>(null);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/founders/me", { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error();
+      setPurchases(data.data.purchases);
+      if (data.data.profile) {
+        setProfile({
+          displayName: data.data.profile.displayName || "",
+          consentDirectory: data.data.profile.consentDirectory,
+          consentCredits: data.data.profile.consentCredits,
+          consentCaseStudy: data.data.profile.consentCaseStudy,
+        });
+      }
+    } catch {
+      /* keep last known state */
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!token) return;
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    const sessionId = searchParams.get("session_id");
+    if (searchParams.get("founder") !== "success" || !sessionId) return;
+    setPendingSessionStatus("confirming");
+    let cancelled = false;
+    let attempts = 0;
+    const poll = async () => {
+      attempts += 1;
+      try {
+        const res = await fetch(`/api/founders/session/${sessionId}`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        if (cancelled) return;
+        if (res.ok && data.ok && data.data.status === "PAID") {
+          setPendingSessionStatus("paid");
+          void load();
+          return;
+        }
+      } catch {
+        /* keep polling */
+      }
+      if (!cancelled && attempts < 8) setTimeout(poll, 1500);
+    };
+    void poll();
+    window.history.replaceState({}, "", "/panel?tab=founder");
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  async function onSaveProfile() {
+    setSavingProfile(true);
+    try {
+      await fetch("/api/founders/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          displayName: profile.displayName,
+          consentDirectory: profile.consentDirectory,
+          consentCredits: profile.consentCredits,
+          consentCaseStudy: profile.consentCaseStudy,
+        }),
+      });
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="h-40 animate-pulse rounded-2xl bg-white/[0.04]" />
+      </div>
+    );
+  }
+
+  if (purchases.length === 0) {
+    return (
+      <div className="rounded-[24px] bg-card p-[30px] text-center">
+        <h2 className="m-0 text-2xl tracking-[-0.02em]">
+          Not a Founder yet<span className="text-signal">.</span>
+        </h2>
+        <p className="mx-auto mt-3 max-w-[440px] text-[15px] leading-[1.6] text-white/55">
+          You don’t hold a Founder status on this account. Founder tiers are limited and numbered —
+          once they’re gone, they’re gone.
+        </p>
+        <Link
+          href="/founders"
+          className="mt-6 inline-flex h-[48px] items-center rounded-[24px] bg-signal px-7 text-[15px] font-semibold text-sig-ink no-underline"
+        >
+          View the Founder Program
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {pendingSessionStatus === "confirming" && (
+        <div className="rounded-2xl bg-signal/[0.08] px-4 py-3 text-[13px] text-signal" role="status">
+          Payment is being confirmed…
+        </div>
+      )}
+      {pendingSessionStatus === "paid" && (
+        <div className="rounded-2xl bg-signal/[0.08] px-4 py-3 text-[13px] text-signal" role="status">
+          Welcome, Founder — your purchase is confirmed.
+        </div>
+      )}
+
+      {purchases.map((p) => (
+        <FounderPurchaseCard key={p.id} purchase={p} token={token} onRefresh={load} />
+      ))}
+
+      <div className="rounded-[24px] bg-card p-[26px]">
+        <div className="mb-1 text-base font-semibold">Founders Directory &amp; credits</div>
+        <p className="m-0 mb-4 text-[13px] text-white/45">
+          These consents are optional and can be changed any time.
+        </p>
+        <label className="mb-3 block text-[13px] text-white/50">
+          Display name (shown only if you opt in below)
+          <input
+            value={profile.displayName}
+            onChange={(e) => setProfile((p) => ({ ...p, displayName: e.target.value }))}
+            maxLength={80}
+            placeholder="Optional"
+            className="mt-1.5 h-11 w-full max-w-sm rounded-xl border-0 bg-white/[0.07] px-4 text-sm text-white outline-none focus:shadow-[0_0_0_1px_var(--signal)]"
+          />
+        </label>
+        <div className="flex flex-col gap-2.5 text-[13px] text-white/60">
+          <label className="flex items-center gap-2.5">
+            <input
+              type="checkbox"
+              checked={profile.consentDirectory}
+              onChange={(e) => setProfile((p) => ({ ...p, consentDirectory: e.target.checked }))}
+              className="h-4 w-4 accent-signal"
+            />
+            List me in the Founders directory
+          </label>
+          <label className="flex items-center gap-2.5">
+            <input
+              type="checkbox"
+              checked={profile.consentCredits}
+              onChange={(e) => setProfile((p) => ({ ...p, consentCredits: e.target.checked }))}
+              className="h-4 w-4 accent-signal"
+            />
+            Include me in the app credits
+          </label>
+          <label className="flex items-center gap-2.5">
+            <input
+              type="checkbox"
+              checked={profile.consentCaseStudy}
+              onChange={(e) => setProfile((p) => ({ ...p, consentCaseStudy: e.target.checked }))}
+              className="h-4 w-4 accent-signal"
+            />
+            I&rsquo;m open to being featured in promotional material or case studies
+          </label>
+        </div>
+        <button
+          type="button"
+          onClick={onSaveProfile}
+          disabled={savingProfile}
+          className="mt-4 h-10 rounded-full border-0 bg-signal px-5 text-[13px] font-semibold text-sig-ink disabled:cursor-wait disabled:opacity-60"
+        >
+          {savingProfile ? "Saving…" : "Save preferences"}
+        </button>
+      </div>
     </div>
   );
 }

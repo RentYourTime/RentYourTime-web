@@ -6,6 +6,9 @@ import { Reveal } from "@/components/motion/Reveal";
 import { GlowLayer } from "@/components/motion/GlowLayer";
 import { ScrollProgressBar } from "@/components/motion/ScrollProgressBar";
 import { ShineSweep } from "@/components/ShineSweep";
+import { isProCheckoutEnabled } from "@/lib/stripe";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -46,6 +49,7 @@ function Cell({ value }: { value: string }) {
 }
 
 export default function PricingPage() {
+  const proCheckoutEnabled = isProCheckoutEnabled();
   return (
     <div className="relative [overflow-x:clip]">
       <GlowLayer
@@ -157,14 +161,25 @@ export default function PricingPage() {
                   </div>
                 ))}
               </div>
-              <Link
-                href="/account"
-                className="mt-auto flex h-[52px] items-center justify-center rounded-[26px] bg-signal text-[15px] font-bold text-sig-ink no-underline transition-transform hover:scale-[1.02]"
-              >
-                Choose Pro
-              </Link>
+              {proCheckoutEnabled ? (
+                <Link
+                  href="/account"
+                  className="mt-auto flex h-[52px] items-center justify-center rounded-[26px] bg-signal text-[15px] font-bold text-sig-ink no-underline transition-transform hover:scale-[1.02]"
+                >
+                  Choose Pro
+                </Link>
+              ) : (
+                <span
+                  aria-disabled="true"
+                  className="mt-auto flex h-[52px] cursor-not-allowed items-center justify-center rounded-[26px] bg-white/10 text-[15px] font-bold text-white/40"
+                >
+                  Sign-ups paused
+                </span>
+              )}
               <div className="mt-3 text-center text-xs text-white/35">
-                Billed monthly or yearly. Cancel anytime.
+                {proCheckoutEnabled
+                  ? "Billed monthly or yearly. Cancel anytime."
+                  : "New Pro sign-ups are temporarily paused. Check back soon."}
               </div>
             </Reveal>
           </section>

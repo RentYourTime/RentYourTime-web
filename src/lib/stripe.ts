@@ -25,6 +25,16 @@ export function getStripe(): Stripe {
   return client;
 }
 
+/**
+ * Kill switch for new regular Pro subscription sign-ups (`POST /api/checkout`).
+ * Disabled by default — must be explicitly turned on with `ENABLE_PRO_CHECKOUT=true`.
+ * Does not affect existing Pro subscribers, the Customer Portal, Contributions,
+ * or the Founder Program, which are separate flows.
+ */
+export function isProCheckoutEnabled(): boolean {
+  return process.env.ENABLE_PRO_CHECKOUT === "true";
+}
+
 /** Map a Stripe Price's billing interval to our internal plan enum. */
 export function planFromInterval(interval: string | null | undefined): SubscriptionPlan {
   if (interval === "month") return "MONTHLY";

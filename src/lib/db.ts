@@ -167,6 +167,88 @@ export function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_contributions_created_at ON contributions(created_at);
     CREATE INDEX IF NOT EXISTS idx_contributions_checkout_session ON contributions(stripe_checkout_session_id);
     CREATE INDEX IF NOT EXISTS idx_contributions_payment_intent ON contributions(stripe_payment_intent_id);
+
+    -- RentYourTime Founder Program (docs/FOUNDER_PROGRAM.md). Limited, numbered,
+    -- one-time-payment tiers. A confirmed purchase can grant real Pro via
+    -- src/lib/subscriptions.ts's grantFounderPro() — unlike contributions,
+    -- which never touch subscriptions at all.
+    CREATE TABLE IF NOT EXISTS founder_tiers (
+      id TEXT PRIMARY KEY,
+      slug TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      price_cents INTEGER NOT NULL,
+      currency TEXT NOT NULL,
+      total_quantity INTEGER NOT NULL,
+      sold_quantity INTEGER NOT NULL DEFAULT 0,
+      stripe_price_id TEXT,
+      pro_duration_months INTEGER,
+      is_lifetime_pro INTEGER NOT NULL DEFAULT 0,
+      early_access_days INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS founder_purchases (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      founder_tier_id TEXT NOT NULL REFERENCES founder_tiers(id),
+      founder_number INTEGER,
+      stripe_checkout_session_id TEXT UNIQUE,
+      stripe_payment_intent_id TEXT UNIQUE,
+      stripe_event_id TEXT,
+      amount_cents INTEGER NOT NULL,
+      currency TEXT NOT NULL,
+      payment_status TEXT NOT NULL,
+      fulfillment_status TEXT NOT NULL DEFAULT 'NOT_APPLICABLE',
+      pro_starts_at TEXT,
+      pro_ends_at TEXT,
+      is_lifetime_pro INTEGER NOT NULL DEFAULT 0,
+      discord_sync_status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(founder_tier_id, founder_number)
+    );
+    CREATE INDEX IF NOT EXISTS idx_founder_purchases_user_id ON founder_purchases(user_id);
+    CREATE INDEX IF NOT EXISTS idx_founder_purchases_tier_id ON founder_purchases(founder_tier_id);
+    CREATE INDEX IF NOT EXISTS idx_founder_purchases_status ON founder_purchases(payment_status);
+    CREATE INDEX IF NOT EXISTS idx_founder_purchases_created_at ON founder_purchases(created_at);
+    -- Only one *active* (not yet resolved, or successfully paid) purchase per
+    -- user+tier — a FAILED/EXPIRED/REFUNDED attempt frees the slot for a retry.
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_founder_purchases_user_tier_active
+      ON founder_purchases(user_id, founder_tier_id)
+      WHERE payment_status IN ('PENDING', 'PAID');
+
+    CREATE TABLE IF NOT EXISTS founder_profiles (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      display_name TEXT,
+      consent_directory INTEGER NOT NULL DEFAULT 0,
+      consent_credits INTEGER NOT NULL DEFAULT 0,
+      consent_case_study INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    -- Founder Black physical kit only. Shipping address is never exposed by
+    -- any public or client-facing read path — see src/lib/founders.ts.
+    CREATE TABLE IF NOT EXISTS founder_black_fulfillments (
+      id TEXT PRIMARY KEY,
+      founder_purchase_id TEXT NOT NULL UNIQUE REFERENCES founder_purchases(id) ON DELETE CASCADE,
+      full_name TEXT,
+      shipping_address TEXT,
+      country TEXT,
+      shirt_size TEXT,
+      card_status TEXT NOT NULL DEFAULT 'pending',
+      certificate_status TEXT NOT NULL DEFAULT 'pending',
+      letter_status TEXT NOT NULL DEFAULT 'pending',
+      shirt_status TEXT NOT NULL DEFAULT 'pending',
+      tracking_number TEXT,
+      shipped_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 
   // Migration: add waitlist.notified to older databases. Existing rows are

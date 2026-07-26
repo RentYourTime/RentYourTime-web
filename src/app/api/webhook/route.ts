@@ -22,6 +22,14 @@ import {
   markContributionFailed,
   settleContributionFromSession,
 } from "@/lib/contributions";
+import {
+  applyFounderRefund,
+  founderSessionMetadata,
+  getFounderPurchaseByPaymentIntentId,
+  markFounderPurchaseExpired,
+  markFounderPurchaseFailed,
+  settleFounderPurchaseFromSession,
+} from "@/lib/founders";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -127,6 +135,19 @@ function extractInvoicePaymentIds(invoice: Stripe.Invoice): {
   };
 }
 
+/**
+ * `checkout.session.completed` and `.async_payment_succeeded` share this
+ * shape for every `mode: "payment"` session this app creates (Contributions
+ * and Founder Program) — dispatch by `metadata.kind` to the right settler.
+ * A subscription-mode session (Pro) never has `metadata.kind` set at all,
+ * so it falls through untouched.
+ */
+function settleOneTimeCheckout(session: Stripe.Checkout.Session, eventId: string): void {
+  const kind = session.metadata?.kind;
+  if (kind === "contribution") settleContributionFromSession(session, eventId);
+  else if (kind === "founder") settleFounderPurchaseFromSession(session, eventId);
+}
+
 export async function POST(req: Request) {
   const payload = await req.text();
   const signature = req.headers.get("stripe-signature") ?? "";
@@ -155,8 +176,8 @@ export async function POST(req: Request) {
 
     if (type === "checkout.session.completed") {
       const object = event.data.object as Stripe.Checkout.Session;
-      if (object.metadata?.kind === "contribution") {
-        settleContributionFromSession(object, event.id);
+      if (object.metadata?.kind === "contribution" || object.metadata?.kind === "founder") {
+        settleOneTimeCheckout(object, event.id);
       } else {
         const userId = String(object.client_reference_id ?? object.metadata?.user_id ?? "");
         if (userId) {
@@ -187,13 +208,19 @@ export async function POST(req: Request) {
         }
       }
     } else if (type === "checkout.session.async_payment_succeeded") {
-      settleContributionFromSession(event.data.object as Stripe.Checkout.Session, event.id);
+      settleOneTimeCheckout(event.data.object as Stripe.Checkout.Session, event.id);
     } else if (type === "checkout.session.async_payment_failed") {
-      const meta = contributionSessionMetadata(event.data.object as Stripe.Checkout.Session);
-      if (meta) markContributionFailed({ id: meta.contributionId, stripeEventId: event.id });
+      const session = event.data.object as Stripe.Checkout.Session;
+      const contribMeta = contributionSessionMetadata(session);
+      if (contribMeta) markContributionFailed({ id: contribMeta.contributionId, stripeEventId: event.id });
+      const founderMeta = founderSessionMetadata(session);
+      if (founderMeta) markFounderPurchaseFailed({ id: founderMeta.purchaseId, stripeEventId: event.id });
     } else if (type === "checkout.session.expired") {
-      const meta = contributionSessionMetadata(event.data.object as Stripe.Checkout.Session);
-      if (meta) markContributionExpired({ id: meta.contributionId, stripeEventId: event.id });
+      const session = event.data.object as Stripe.Checkout.Session;
+      const contribMeta = contributionSessionMetadata(session);
+      if (contribMeta) markContributionExpired({ id: contribMeta.contributionId, stripeEventId: event.id });
+      const founderMeta = founderSessionMetadata(session);
+      if (founderMeta) markFounderPurchaseExpired({ id: founderMeta.purchaseId, stripeEventId: event.id });
     } else if (
       type === "customer.subscription.created" ||
       type === "customer.subscription.updated" ||
@@ -277,18 +304,20 @@ export async function POST(req: Request) {
         }
       }
     } else if (type === "charge.succeeded") {
-      // A contribution charge already known by payment_intent (i.e. its
-      // checkout.session.completed already landed) is skipped here — it
+      // A contribution/Founder charge already known by payment_intent (i.e.
+      // its checkout.session.completed already landed) is skipped here — it
       // must never be misattached to an unrelated subscription invoice
       // row that's still waiting on payment linkage. If this event races
       // ahead of checkout.session.completed, the charge is briefly
       // unlinked from either — cosmetic only (see docs/CONTRIBUTIONS.md),
-      // never affects amounts, Pro status, or contribution PAID status.
+      // never affects amounts, Pro status, or purchase PAID status.
       const object = event.data.object as Stripe.Charge;
       const chargePi = object.payment_intent;
       const chargePiId = chargePi ? (typeof chargePi === "string" ? chargePi : chargePi.id) : null;
-      const isKnownContribution = chargePiId ? !!getContributionByPaymentIntentId(chargePiId) : false;
-      const userId = isKnownContribution ? "" : findUserIdByCustomer(db, customerId(object.customer));
+      const isKnownOneTimePurchase = chargePiId
+        ? !!getContributionByPaymentIntentId(chargePiId) || !!getFounderPurchaseByPaymentIntentId(chargePiId)
+        : false;
+      const userId = isKnownOneTimePurchase ? "" : findUserIdByCustomer(db, customerId(object.customer));
       if (userId) {
         attachPaymentToInvoice(userId, "provider_payment_id", object.id);
         if (chargePiId) {
@@ -299,11 +328,12 @@ export async function POST(req: Request) {
       type === "payment_intent.succeeded" ||
       type === "payment_intent.payment_failed"
     ) {
-      // PaymentIntents created via our contribution Checkout Sessions carry
-      // metadata.kind (set through payment_intent_data.metadata) — skip
-      // invoice-linkage entirely for those, same reasoning as charge.succeeded above.
+      // PaymentIntents created via our contribution/Founder Checkout Sessions
+      // carry metadata.kind (set through payment_intent_data.metadata) —
+      // skip invoice-linkage entirely for those, same reasoning as
+      // charge.succeeded above.
       const object = event.data.object as Stripe.PaymentIntent;
-      if (object.metadata?.kind !== "contribution") {
+      if (object.metadata?.kind !== "contribution" && object.metadata?.kind !== "founder") {
         const userId = findUserIdByCustomer(db, customerId(object.customer));
         if (userId) {
           attachPaymentToInvoice(userId, "provider_payment_intent_id", object.id);
@@ -314,18 +344,24 @@ export async function POST(req: Request) {
       const refundPi = object.payment_intent;
       const refundPiId = refundPi ? (typeof refundPi === "string" ? refundPi : refundPi.id) : null;
       const contribution = refundPiId ? getContributionByPaymentIntentId(refundPiId) : null;
+      const founderPurchase = !contribution && refundPiId ? getFounderPurchaseByPaymentIntentId(refundPiId) : null;
 
       if (contribution) {
         if (contribution.status === "PAID") {
           applyRefund({ id: contribution.id, refundedAmountCents: object.amount_refunded, stripeEventId: event.id });
+        }
+      } else if (founderPurchase) {
+        if (founderPurchase.payment_status === "PAID") {
+          applyFounderRefund({ id: founderPurchase.id, stripeEventId: event.id });
         }
       } else if (object.refunded) {
         // Only a full refund revokes Pro; a partial refund (e.g. a
         // goodwill credit) leaves the subscription status untouched.
         // Correlated by customer rather than invoice: this account only
         // ever creates subscription-mode Checkout charges (contributions
-        // are excluded above), so every remaining charge against a
-        // customer with a subscription row is that subscription's.
+        // and Founder purchases are excluded above), so every remaining
+        // charge against a customer with a subscription row is that
+        // subscription's.
         const custId = customerId(object.customer);
         if (custId) {
           db.prepare(

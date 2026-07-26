@@ -21,6 +21,7 @@ const ERROR_MAP: Record<string, string> = {
     "Use at least 10 characters, with an uppercase letter, a lowercase letter, and a number.",
   invalid_email: "Enter a valid email address.",
   customer_not_found: "No billing account yet — subscribe to Pro first.",
+  pro_checkout_disabled: "Pro sign-ups are temporarily paused. Check back soon.",
 };
 
 interface AccountData extends OverviewUser {
@@ -42,6 +43,7 @@ export function AccountClient() {
   const [plan, setPlan] = useState<"monthly" | "yearly">("yearly");
   const [resendStatus, setResendStatus] = useState<ResendStatus>("idle");
   const [tab, setTab] = useState<AccountTab>("overview");
+  const [proCheckoutEnabled, setProCheckoutEnabled] = useState(true);
 
   const message = useCallback(
     (text: string, error = false) => setStatus({ text, error }),
@@ -92,6 +94,7 @@ export function AccountClient() {
         role: data.user.role,
         subscription: data.user.subscription,
       });
+      setProCheckoutEnabled(!!data.pro_checkout_enabled);
       if (data.user.subscription?.is_pro) message("Pro is active on this account.");
       setResendStatus("idle");
       void loadInvoices(activeToken);
@@ -142,8 +145,9 @@ export function AccountClient() {
     try {
       const data = await api("checkout", { method: "POST", body: JSON.stringify({ plan }) });
       window.location.href = data.checkout_url;
-    } catch {
-      message("Checkout is not configured yet. Check the server settings.", true);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "";
+      message(ERROR_MAP[code] || "Checkout is not configured yet. Check the server settings.", true);
       setBusy(false);
     }
   }
@@ -266,6 +270,7 @@ export function AccountClient() {
                       onCheckout={onCheckout}
                       onManageSubscription={onManageSubscription}
                       busy={busy}
+                      checkoutEnabled={proCheckoutEnabled}
                     />
                   </Reveal>
                 )}

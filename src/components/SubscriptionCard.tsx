@@ -61,6 +61,7 @@ export function SubscriptionCard({
   onCheckout,
   onManageSubscription,
   busy,
+  checkoutEnabled = true,
 }: {
   subscription: SubscriptionData;
   plan: "monthly" | "yearly";
@@ -68,6 +69,7 @@ export function SubscriptionCard({
   onCheckout: () => void;
   onManageSubscription: () => void;
   busy: boolean;
+  checkoutEnabled?: boolean;
 }) {
   const isPastDue = subscription.status === "past_due";
   const isCanceling = subscription.is_pro && !subscription.auto_renew;
@@ -141,7 +143,12 @@ export function SubscriptionCard({
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        {!subscription.is_pro && (
+        {!subscription.is_pro && !checkoutEnabled && (
+          <p className="text-[13px] text-white/50">
+            Pro sign-ups are temporarily paused. Check back soon.
+          </p>
+        )}
+        {!subscription.is_pro && checkoutEnabled && (
           <>
             <div
               role="group"

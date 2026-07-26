@@ -16,6 +16,7 @@ const toc = [
   ["account", "Eligibility & account"],
   ["billing", "Subscriptions & billing"],
   ["cancel", "Cancellation & refunds"],
+  ["founder-program", "Founder Program"],
   ["use", "Acceptable use"],
   ["ip", "Intellectual property"],
   ["disclaimer", "Disclaimers"],
@@ -189,8 +190,48 @@ export default function TermsPage() {
                 </p>
               </section>
 
-              <section id="use">
+              <section id="founder-program">
                 <div className="text-xs font-bold tracking-[0.08em] text-signal">06</div>
+                <h2 className="mb-3 mt-2.5 text-[26px] tracking-[-0.02em]">Founder Program</h2>
+                <p className="m-0 text-base leading-[1.65] text-white/60">
+                  RentYourTime offers a limited number of one-time, numbered &ldquo;Founder&rdquo;
+                  purchases (Founder First, Founder Gold, Founder Black). Each tier is capped at a
+                  fixed quantity; once a tier sells out, no further purchases of it are possible.
+                  Purchasing a Founder tier grants the specific benefits listed on the{" "}
+                  <a href="/founders" className="font-semibold">
+                    Founder Program page
+                  </a>{" "}
+                  at the time of purchase — including, where stated, RentYourTime Pro access for a
+                  fixed term or for life.
+                </p>
+                <p className="m-0 mt-3.5 text-base leading-[1.65] text-white/60">A Founder purchase:</p>
+                <ul className="m-0 mt-3.5 list-disc pl-5 text-base leading-[1.65] text-white/60">
+                  <li className="my-2">Does not grant equity, ownership, or any share in RentYourTime.</li>
+                  <li className="my-2">Does not grant rights to RentYourTime&rsquo;s code, intellectual property, or revenue.</li>
+                  <li className="my-2">Does not guarantee employment or cooperation with RentYourTime.</li>
+                  <li className="my-2">
+                    Does not obligate RentYourTime to implement any specific feature — roadmap voting and
+                    feature submissions receive priority consideration, not a guarantee.
+                  </li>
+                  <li className="my-2">
+                    Is subject to scheduling and availability where a benefit involves a call, meeting,
+                    or early access build — dates given are estimates, not guarantees.
+                  </li>
+                </ul>
+                <p className="m-0 mt-3.5 text-base leading-[1.65] text-white/60">
+                  Final decisions about the product, its roadmap, and eligibility for any benefit remain
+                  with RentYourTime. Founder Black&rsquo;s weekly call requires advance booking; slot
+                  availability is limited, unused calls do not accumulate, and a booked call may need to
+                  be rescheduled. Refunds for Founder purchases follow the same policy as{" "}
+                  <a href="#cancel" className="font-semibold">
+                    Cancellation &amp; refunds
+                  </a>{" "}
+                  above; a refund does not automatically restore a sold-out numbered slot to another buyer.
+                </p>
+              </section>
+
+              <section id="use">
+                <div className="text-xs font-bold tracking-[0.08em] text-signal">07</div>
                 <h2 className="mb-3 mt-2.5 text-[26px] tracking-[-0.02em]">Acceptable use</h2>
                 <p className="m-0 text-base leading-[1.65] text-white/60">Please don&rsquo;t:</p>
                 <ul className="m-0 mt-3.5 list-disc pl-5 text-base leading-[1.65] text-white/60">
@@ -207,7 +248,7 @@ export default function TermsPage() {
               </section>
 
               <section id="ip">
-                <div className="text-xs font-bold tracking-[0.08em] text-signal">07</div>
+                <div className="text-xs font-bold tracking-[0.08em] text-signal">08</div>
                 <h2 className="mb-3 mt-2.5 text-[26px] tracking-[-0.02em]">Intellectual property</h2>
                 <p className="m-0 text-base leading-[1.65] text-white/60">
                   The app, our brand, and everything we create remain ours. We grant you a limited,
@@ -221,7 +262,7 @@ export default function TermsPage() {
               </section>
 
               <section id="disclaimer">
-                <div className="text-xs font-bold tracking-[0.08em] text-signal">08</div>
+                <div className="text-xs font-bold tracking-[0.08em] text-signal">09</div>
                 <h2 className="mb-3 mt-2.5 text-[26px] tracking-[-0.02em]">Disclaimers</h2>
                 <p className="m-0 text-base leading-[1.65] text-white/60">
                   RentYourTime is provided &ldquo;as is&rdquo;. Screen-time and rent figures are
@@ -232,7 +273,7 @@ export default function TermsPage() {
               </section>
 
               <section id="liability">
-                <div className="text-xs font-bold tracking-[0.08em] text-signal">09</div>
+                <div className="text-xs font-bold tracking-[0.08em] text-signal">10</div>
                 <h2 className="mb-3 mt-2.5 text-[26px] tracking-[-0.02em]">
                   Limitation of liability
                 </h2>
@@ -245,7 +286,7 @@ export default function TermsPage() {
               </section>
 
               <section id="changes">
-                <div className="text-xs font-bold tracking-[0.08em] text-signal">10</div>
+                <div className="text-xs font-bold tracking-[0.08em] text-signal">11</div>
                 <h2 className="mb-3 mt-2.5 text-[26px] tracking-[-0.02em]">Changes</h2>
                 <p className="m-0 text-base leading-[1.65] text-white/60">
                   We may update the service and these Terms over time. If a change is material,
@@ -255,7 +296,7 @@ export default function TermsPage() {
               </section>
 
               <section id="law">
-                <div className="text-xs font-bold tracking-[0.08em] text-signal">11</div>
+                <div className="text-xs font-bold tracking-[0.08em] text-signal">12</div>
                 <h2 className="mb-3 mt-2.5 text-[26px] tracking-[-0.02em]">Governing law</h2>
                 <p className="m-0 text-base leading-[1.65] text-white/60">
                   These Terms are governed by the laws of the country where RentYourTime is
@@ -265,7 +306,7 @@ export default function TermsPage() {
               </section>
 
               <section id="contact">
-                <div className="text-xs font-bold tracking-[0.08em] text-signal">12</div>
+                <div className="text-xs font-bold tracking-[0.08em] text-signal">13</div>
                 <h2 className="mb-3 mt-2.5 text-[26px] tracking-[-0.02em]">Contact</h2>
                 <p className="m-0 text-base leading-[1.65] text-white/60">
                   Questions about these Terms? Email{" "}

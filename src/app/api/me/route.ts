@@ -1,4 +1,5 @@
 import { currentUser, json, jsonError } from "@/lib/auth";
+import { isProCheckoutEnabled } from "@/lib/stripe";
 import { getSubscriptionForUser, serializeSubscription } from "@/lib/subscriptions";
 
 export const runtime = "nodejs";
@@ -12,6 +13,7 @@ export async function GET(req: Request) {
 
   return json({
     ok: true,
+    pro_checkout_enabled: isProCheckoutEnabled(),
     user: {
       id: user.id,
       email: user.email,

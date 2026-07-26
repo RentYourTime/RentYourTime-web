@@ -9,10 +9,16 @@ original PHP + static-HTML site.
   history with hosted/PDF invoice links, and the Stripe Customer Portal
 - **Waitlist admin panel** (`/admin/waitlist`, `role = ADMIN` only) — signup stats,
   search/filter, status tracking, notes, CSV export
+- **Founder Program** (`/founders`) — three limited, numbered, one-time-payment tiers
+  (Founder First/Gold/Black) with server-tracked availability, real Stripe Checkout,
+  and a numbered status that grants real Pro — see
+  [`docs/FOUNDER_PROGRAM.md`](docs/FOUNDER_PROGRAM.md). Status lives in the client
+  panel's "Founder Status" tab (`/panel`); management lives in the admin panel's
+  "Founder Program" tab (`/admin`).
 - **API** — waitlist, account auth (register / login / me / logout), Stripe
-  subscription checkout + webhooks + billing history, and a subscription
-  entitlement service that recognizes whether Pro was purchased through Stripe or
-  Apple — backed by SQLite
+  subscription checkout + webhooks + billing history, one-time Founder Program
+  purchases, and a subscription entitlement service that recognizes whether Pro was
+  purchased through Stripe, Apple, or a Founder Program purchase — backed by SQLite
 
 ## Stack
 
@@ -35,6 +41,7 @@ npm install
 cp .env.example .env   # fill in your values
 npm run dev            # http://localhost:3000
 npm test                # run the test suite (vitest, isolated temp SQLite DBs)
+npm run founders:seed   # seed the three Founder Program tiers (idempotent)
 ```
 
 ### Environment
@@ -86,6 +93,17 @@ Run behind a reverse proxy (nginx/Caddy) terminating HTTPS and forwarding
 | GET    | `/api/admin/waitlist`             | List + stats (Bearer, `role=ADMIN`)         |
 | PATCH  | `/api/admin/waitlist/[id]`        | Update status/notes (Bearer, `role=ADMIN`)  |
 | GET    | `/api/admin/waitlist/export`      | CSV export (Bearer, `role=ADMIN`)           |
+| GET    | `/api/founders/tiers`             | Live tier availability (public)             |
+| POST   | `/api/founders/checkout`          | Create a Founder tier Checkout session (Bearer) |
+| GET    | `/api/founders/me`                | Your Founder purchases + profile (Bearer)   |
+| GET    | `/api/founders/session/[id]`      | Poll a Founder checkout session's status (Bearer) |
+| POST   | `/api/founders/black-kit`         | Submit Founder Black shipping details (Bearer) |
+| PATCH  | `/api/founders/profile`           | Founders Directory/credits/case-study consent (Bearer) |
+| GET/PATCH | `/api/admin/founders/tiers[/id]` | Manage tiers (Bearer, `role=ADMIN`)     |
+| GET    | `/api/admin/founders/purchases`   | List purchases, filterable (Bearer, `role=ADMIN`) |
+| GET/PATCH | `/api/admin/founders/purchases/[id]/kit` | Founder Black kit fulfillment (Bearer, `role=ADMIN`) |
+| PATCH  | `/api/admin/founders/purchases/[id]/tracking` | Set a tracking number (Bearer, `role=ADMIN`) |
+| GET    | `/api/admin/founders/export`      | CSV export (Bearer, `role=ADMIN`)           |
 
 Tokens are random, stored only as SHA-256 hashes, and expire after 30 days.
 `src/lib/subscriptions.ts` (driven by Stripe/Apple webhooks) is the single source of
@@ -97,7 +115,9 @@ trust `productId`/`expiresAt` sent by a client. Billing history
 [`docs/STRIPE.md`](docs/STRIPE.md), [`docs/BILLING_PORTAL.md`](docs/BILLING_PORTAL.md),
 [`docs/APPLE_SUBSCRIPTIONS.md`](docs/APPLE_SUBSCRIPTIONS.md),
 [`docs/EMAIL_VERIFICATION.md`](docs/EMAIL_VERIFICATION.md),
-[`docs/WAITLIST.md`](docs/WAITLIST.md) (also covers granting the `ADMIN` role).
+[`docs/WAITLIST.md`](docs/WAITLIST.md) (also covers granting the `ADMIN` role),
+[`docs/CONTRIBUTIONS.md`](docs/CONTRIBUTIONS.md),
+[`docs/FOUNDER_PROGRAM.md`](docs/FOUNDER_PROGRAM.md).
 
 ## Legacy
 

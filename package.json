@@ -14,7 +14,8 @@
     "bot:register": "node bot/register-commands.js",
     "lint": "next lint",
     "test": "vitest run",
-    "admin:grant": "node scripts/grant-admin.mjs"
+    "admin:grant": "node scripts/grant-admin.mjs",
+    "founders:seed": "node scripts/seed-founder-tiers.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-sesv2": "^3.1092.0",

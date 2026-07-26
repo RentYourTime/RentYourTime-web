@@ -2,6 +2,15 @@
 
 ## Checkout — `POST /api/checkout`
 
+Gated by `isProCheckoutEnabled()` in `src/lib/stripe.ts`: returns
+`pro_checkout_disabled` (503) unless `ENABLE_PRO_CHECKOUT=true` is set — disabled by
+default. This only stops *new* regular Pro sign-ups; it doesn't touch existing Pro
+subscribers, the Customer Portal, Contributions, or the Founder Program, which are
+separate flows with their own checkout routes. `GET /api/me` exposes the current
+value as `pro_checkout_enabled` so the account page can show a proper disabled state
+instead of a button that just errors; `/pricing`'s Pro card reads the same flag
+server-side.
+
 Bearer-authenticated, rate-limited (10 / 10 min / IP). Body: `{ "plan": "monthly" |
 "yearly" }` (defaults to `yearly`).
 
@@ -50,8 +59,10 @@ history (`billing_records`) — see [`docs/BILLING_PORTAL.md`](./BILLING_PORTAL.
 for what each one does and why payment-id linkage is best-effort in the pinned API
 version. The three `checkout.session.*` events beyond `completed` — plus the
 `checkout.session.completed`/`charge.refunded` branches when their metadata says
-`kind: "contribution"` — belong to the separate one-time "Support the project" flow;
-see [`docs/CONTRIBUTIONS.md`](./CONTRIBUTIONS.md).
+`kind: "contribution"` or `kind: "founder"` — belong to two separate one-time-payment
+flows: "Support the project" ([`docs/CONTRIBUTIONS.md`](./CONTRIBUTIONS.md)) and the
+Founder Program ([`docs/FOUNDER_PROGRAM.md`](./FOUNDER_PROGRAM.md)). No new event
+types were needed for the Founder Program — it reuses this exact same list.
 
 ### How it works
 
@@ -85,9 +96,11 @@ see [`docs/CONTRIBUTIONS.md`](./CONTRIBUTIONS.md).
 - `charge.refunded`: only a **full** refund (`charge.refunded === true`) marks the
   subscription `refunded`; partial refunds (e.g. goodwill credits) leave status
   untouched. Correlated by `charge.customer`, not by invoice — this account only
-  creates subscription-mode Checkout charges, so every charge against a customer
-  with a subscription row belongs to that subscription. If this product ever sells
-  anything else through Stripe, this correlation needs to become invoice-based.
+  creates subscription-mode Checkout charges once Contributions and Founder Program
+  purchases are excluded (checked first, by `payment_intent`), so every remaining
+  charge against a customer with a subscription row belongs to that subscription. If
+  this product ever sells anything else through Stripe, this correlation needs to
+  become invoice-based.
 
 ### A real bug this fixes
 

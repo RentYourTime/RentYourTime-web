@@ -19,6 +19,9 @@ export function SiteFooter({
         <Link href="/teams" className="link-underline text-white/50 no-underline hover:text-white">
           Teams
         </Link>
+        <Link href="/founders" className="link-underline text-white/50 no-underline hover:text-white">
+          Founders
+        </Link>
         <Link href="/terms" className="link-underline text-white/50 no-underline hover:text-white">
           Terms
         </Link>

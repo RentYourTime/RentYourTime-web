@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Wordmark } from "@/components/SiteNav";
 
 const TOKEN_KEY = "ryt-auth-token";
 
 type Gate = "checking" | "denied" | "granted";
-type Tab = "overview" | "users" | "subscriptions" | "system";
+type Tab = "overview" | "users" | "subscriptions" | "founders" | "system";
 
 interface AdminUser {
   id: string;
@@ -37,6 +37,7 @@ const NAV: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "users", label: "User accounts" },
   { key: "subscriptions", label: "Subscriptions" },
+  { key: "founders", label: "Founder Program" },
   { key: "system", label: "System" },
 ];
 
@@ -44,6 +45,7 @@ const TITLES: Record<Tab, string> = {
   overview: "Platform overview",
   users: "User accounts",
   subscriptions: "Subscriptions",
+  founders: "Founder Program",
   system: "System",
 };
 
@@ -134,6 +136,7 @@ export function AdminClient() {
           {tab === "overview" && <OverviewTab token={token} />}
           {tab === "users" && <UsersTab token={token} />}
           {tab === "subscriptions" && <SubscriptionsTab token={token} />}
+          {tab === "founders" && <FoundersTab token={token} />}
           {tab === "system" && <SystemTab />}
         </div>
       </main>
@@ -441,6 +444,375 @@ function SubscriptionsTab({ token }: { token: string }) {
         label="Pro share"
         value={`${users.totalUsers ? Math.round((users.proUsers / users.totalUsers) * 100) : 0}%`}
       />
+    </div>
+  );
+}
+
+interface AdminFounderTier {
+  id: string;
+  slug: string;
+  name: string;
+  priceCents: number;
+  currency: string;
+  totalQuantity: number;
+  soldQuantity: number;
+  remainingQuantity: number;
+  isSoldOut: boolean;
+  isActive: boolean;
+}
+
+interface AdminFounderPurchase {
+  id: string;
+  email: string;
+  tierSlug: string;
+  tierName: string;
+  founderNumberFormatted: string | null;
+  amountCents: number;
+  currency: string;
+  paymentStatus: string;
+  fulfillmentStatus: string;
+  discordSyncStatus: string;
+  purchasedAt: string;
+}
+
+interface FounderBlackKitDetail {
+  fullName: string | null;
+  shippingAddress: string | null;
+  country: string | null;
+  shirtSize: string | null;
+  cardStatus: string;
+  certificateStatus: string;
+  letterStatus: string;
+  shirtStatus: string;
+  trackingNumber: string | null;
+}
+
+function formatMoney(cents: number, currency: string): string {
+  try {
+    return (cents / 100).toLocaleString(undefined, { style: "currency", currency: currency.toUpperCase() });
+  } catch {
+    return `${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
+  }
+}
+
+const KIT_FIELDS: { field: "cardStatus" | "certificateStatus" | "letterStatus" | "shirtStatus"; apiField: string; label: string }[] = [
+  { field: "cardStatus", apiField: "card_status", label: "Card" },
+  { field: "certificateStatus", apiField: "certificate_status", label: "Certificate" },
+  { field: "letterStatus", apiField: "letter_status", label: "Letter" },
+  { field: "shirtStatus", apiField: "shirt_status", label: "Shirt" },
+];
+
+function KitPanel({ purchaseId, token }: { purchaseId: string; token: string }) {
+  const [kit, setKit] = useState<FounderBlackKitDetail | null | undefined>(undefined);
+
+  const load = useCallback(async () => {
+    const res = await fetch(`/api/admin/founders/purchases/${purchaseId}/kit`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    setKit(res.ok && data.ok ? data.data : null);
+  }, [purchaseId, token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function setStatus(apiField: string, status: string) {
+    await fetch(`/api/admin/founders/purchases/${purchaseId}/kit`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ field: apiField, status }),
+    });
+    void load();
+  }
+
+  async function setTracking() {
+    const trackingNumber = window.prompt("Tracking number:");
+    if (!trackingNumber) return;
+    await fetch(`/api/admin/founders/purchases/${purchaseId}/tracking`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ trackingNumber }),
+    });
+    void load();
+  }
+
+  if (kit === undefined) return <p className="p-4 text-[13px] text-white/40">Loading kit details…</p>;
+  if (kit === null) {
+    return <p className="p-4 text-[13px] text-white/40">The buyer hasn&rsquo;t submitted shipping details yet.</p>;
+  }
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-white/[0.06] bg-ink p-4">
+      <div className="grid grid-cols-1 gap-2 text-[13px] text-white/70 sm:grid-cols-2">
+        <div>
+          <span className="text-white/40">Name: </span>
+          {kit.fullName}
+        </div>
+        <div>
+          <span className="text-white/40">Country: </span>
+          {kit.country}
+        </div>
+        <div className="sm:col-span-2">
+          <span className="text-white/40">Address: </span>
+          {kit.shippingAddress}
+        </div>
+        <div>
+          <span className="text-white/40">Shirt size: </span>
+          {kit.shirtSize}
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {KIT_FIELDS.map(({ field, apiField, label }) => (
+          <div key={field} className="flex items-center gap-1.5 rounded-full bg-white/[0.05] px-2 py-1">
+            <span className="text-[12px] text-white/50">{label}</span>
+            <select
+              value={kit[field]}
+              onChange={(e) => setStatus(apiField, e.target.value)}
+              className="rounded-full border-0 bg-transparent text-[12px] font-semibold text-white outline-none"
+            >
+              <option value="pending">Pending</option>
+              <option value="prepared">Prepared</option>
+              <option value="shipped">Shipped</option>
+            </select>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-3 text-[13px]">
+        <span className="text-white/40">Tracking:</span>
+        <span className="text-white">{kit.trackingNumber || "—"}</span>
+        <button type="button" onClick={setTracking} className="text-signal underline">
+          {kit.trackingNumber ? "Update" : "Add"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FoundersTab({ token }: { token: string }) {
+  const [tiers, setTiers] = useState<AdminFounderTier[]>([]);
+  const [purchases, setPurchases] = useState<AdminFounderPurchase[]>([]);
+  const [tierFilter, setTierFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  const loadTiers = useCallback(async () => {
+    const res = await fetch("/api/admin/founders/tiers", { headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (res.ok && data.ok) setTiers(data.tiers);
+  }, [token]);
+
+  const loadPurchases = useCallback(async () => {
+    const params = new URLSearchParams();
+    if (tierFilter) params.set("tier", tierFilter);
+    if (statusFilter) params.set("status", statusFilter);
+    if (search) params.set("search", search);
+    const res = await fetch(`/api/admin/founders/purchases?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) setPurchases(data.purchases);
+    else setError("Couldn't load Founder purchases.");
+  }, [token, tierFilter, statusFilter, search]);
+
+  useEffect(() => {
+    if (!token) return;
+    void loadTiers();
+  }, [token, loadTiers]);
+
+  useEffect(() => {
+    if (!token) return;
+    const t = setTimeout(loadPurchases, 200);
+    return () => clearTimeout(t);
+  }, [token, loadPurchases]);
+
+  async function toggleActive(tier: AdminFounderTier) {
+    await fetch(`/api/admin/founders/tiers/${tier.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: tier.isActive ? "deactivate" : "activate" }),
+    });
+    void loadTiers();
+  }
+
+  async function changeLimit(tier: AdminFounderTier) {
+    const input = window.prompt(`New limit for ${tier.name} (currently ${tier.totalQuantity}, sold ${tier.soldQuantity}):`, String(tier.totalQuantity));
+    if (input === null) return;
+    const totalQuantity = Number(input);
+    if (!Number.isInteger(totalQuantity) || totalQuantity < 0) return;
+    const res = await fetch(`/api/admin/founders/tiers/${tier.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ totalQuantity }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      window.alert(data.error === "below_sold_quantity" ? "Can't set the limit below the number already sold." : "Couldn't update the limit.");
+    }
+    void loadTiers();
+  }
+
+  async function onExport() {
+    const res = await fetch("/api/admin/founders/export", { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "founder-purchases.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <div className="mb-3 text-base font-semibold">Tiers</div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {tiers.map((t) => (
+            <div key={t.id} className="rounded-[20px] bg-card p-5">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold">{t.name}</div>
+                <span
+                  className={`inline-flex h-5 items-center rounded-full px-2 text-[10px] font-bold ${
+                    t.isActive ? "bg-signal/[0.12] text-signal" : "bg-white/10 text-white/50"
+                  }`}
+                >
+                  {t.isActive ? "ACTIVE" : "OFF"}
+                </span>
+              </div>
+              <div className="mt-2 text-[13px] text-white/50">{formatMoney(t.priceCents, t.currency)} one-time</div>
+              <div className="mt-2 text-[13px]">
+                <span className={t.isSoldOut ? "text-[#ff6b60]" : "text-white/70"}>
+                  {t.soldQuantity} / {t.totalQuantity} sold
+                </span>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleActive(t)}
+                  className="h-8 rounded-full border border-white/15 px-3 text-[12px] font-semibold text-white/75 hover:bg-white/[0.06]"
+                >
+                  {t.isActive ? "Deactivate" : "Activate"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => changeLimit(t)}
+                  className="h-8 rounded-full border border-white/15 px-3 text-[12px] font-semibold text-white/75 hover:bg-white/[0.06]"
+                >
+                  Change limit
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-base font-semibold">Purchases</div>
+          <button
+            type="button"
+            onClick={onExport}
+            className="h-9 rounded-full border border-white/[0.12] px-4 text-[13px] font-semibold text-white/80 hover:bg-white/[0.06]"
+          >
+            Export CSV
+          </button>
+        </div>
+        <div className="mb-3 flex flex-wrap gap-2.5">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search email…"
+            className="h-10 w-[220px] rounded-full border border-white/10 bg-card px-4 text-[13px] text-white outline-none focus:shadow-[0_0_0_1px_var(--signal)]"
+          />
+          <select
+            value={tierFilter}
+            onChange={(e) => setTierFilter(e.target.value)}
+            className="h-10 rounded-full border border-white/10 bg-card px-3 text-[13px] text-white outline-none"
+          >
+            <option value="">All tiers</option>
+            <option value="founder-first">Founder First</option>
+            <option value="founder-gold">Founder Gold</option>
+            <option value="founder-black">Founder Black</option>
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="h-10 rounded-full border border-white/10 bg-card px-3 text-[13px] text-white outline-none"
+          >
+            <option value="">All statuses</option>
+            {["PENDING", "PAID", "FAILED", "EXPIRED", "REFUNDED"].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {error && <p className="mb-3 text-[13px] text-[#ff8a84]">{error}</p>}
+
+        <div className="overflow-x-auto rounded-[24px] bg-card">
+          <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-[0.05em] text-white/40">
+                <th className="px-4 py-4 font-semibold">Email</th>
+                <th className="px-2 py-4 font-semibold">Tier</th>
+                <th className="px-2 py-4 font-semibold">#</th>
+                <th className="px-2 py-4 font-semibold">Amount</th>
+                <th className="px-2 py-4 font-semibold">Payment</th>
+                <th className="px-2 py-4 font-semibold">Fulfillment</th>
+                <th className="px-2 py-4 font-semibold">Purchased</th>
+              </tr>
+            </thead>
+            <tbody>
+              {purchases.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-white/40">
+                    No purchases match these filters.
+                  </td>
+                </tr>
+              )}
+              {purchases.map((p) => (
+                <Fragment key={p.id}>
+                  <tr
+                    className={`border-t border-white/[0.05] ${p.tierSlug === "founder-black" ? "cursor-pointer hover:bg-white/[0.02]" : ""}`}
+                    onClick={() => p.tierSlug === "founder-black" && setExpandedId(expandedId === p.id ? null : p.id)}
+                  >
+                    <td className="px-4 py-3.5 font-medium">{p.email}</td>
+                    <td className="px-2 py-3.5">{p.tierName}</td>
+                    <td className="px-2 py-3.5 tabular-nums">{p.founderNumberFormatted ?? "—"}</td>
+                    <td className="px-2 py-3.5 tabular-nums">{formatMoney(p.amountCents, p.currency)}</td>
+                    <td className="px-2 py-3.5">
+                      <span
+                        className={`inline-flex h-6 items-center rounded-full px-2.5 text-xs font-semibold ${
+                          p.paymentStatus === "PAID" ? "bg-signal/[0.12] text-signal" : "bg-white/[0.08] text-white/55"
+                        }`}
+                      >
+                        {p.paymentStatus}
+                      </span>
+                    </td>
+                    <td className="px-2 py-3.5 text-white/60">{p.fulfillmentStatus.replace("_", " ")}</td>
+                    <td className="px-2 py-3.5 text-white/50">{formatDate(p.purchasedAt)}</td>
+                  </tr>
+                  {expandedId === p.id && p.tierSlug === "founder-black" && (
+                    <tr>
+                      <td colSpan={7} className="p-0">
+                        <KitPanel purchaseId={p.id} token={token} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-3 text-[13px] text-white/40">Click a Founder Black row to manage its physical kit.</div>
+      </div>
     </div>
   );
 }

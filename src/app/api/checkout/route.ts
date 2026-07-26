@@ -1,10 +1,12 @@
 import { currentUser, json, jsonError, rateLimit } from "@/lib/auth";
-import { envRequired, getStripe, ServerConfigError } from "@/lib/stripe";
+import { envRequired, getStripe, isProCheckoutEnabled, ServerConfigError } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  if (!isProCheckoutEnabled()) return jsonError("pro_checkout_disabled", 503);
+
   const limited = rateLimit(req, "checkout", 10, 600);
   if (limited) return limited;
 
