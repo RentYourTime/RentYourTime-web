@@ -7,6 +7,9 @@ import { GlowLayer } from "@/components/motion/GlowLayer";
 import { ScrollProgressBar } from "@/components/motion/ScrollProgressBar";
 import { ShineSweep } from "@/components/ShineSweep";
 import { isProCheckoutEnabled } from "@/lib/stripe";
+import { FounderTierCards } from "@/components/founders/FounderTierCards";
+import { FounderComparisonTable } from "@/components/founders/FounderComparisonTable";
+import { listActiveFounderTiers, serializeFounderTier } from "@/lib/founders";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +53,9 @@ function Cell({ value }: { value: string }) {
 
 export default function PricingPage() {
   const proCheckoutEnabled = isProCheckoutEnabled();
+  // Server Component: availability is read straight from the database on
+  // every request (no cache) — see docs/FOUNDER_PROGRAM.md "Availability".
+  const founderTiers = listActiveFounderTiers().map(serializeFounderTier);
   return (
     <div className="relative [overflow-x:clip]">
       <GlowLayer
@@ -183,6 +189,43 @@ export default function PricingPage() {
               </div>
             </Reveal>
           </section>
+
+          {/* founder program */}
+          {founderTiers.length > 0 && (
+            <section
+              aria-label="Founder Program tiers"
+              className="border-t border-white/[0.06] px-6 py-[72px] sm:px-12"
+            >
+              <Reveal delayMs={0} className="text-[13px] font-bold tracking-[0.1em] text-[#CD7F32]">
+                LIMITED · ONE-TIME PAYMENT
+              </Reveal>
+              <Reveal
+                as="h2"
+                delayMs={68}
+                className="mb-3 mt-3 max-w-[640px] text-[32px] tracking-[-0.03em] sm:text-[36px]"
+              >
+                Or become a Founder<span className="text-signal">.</span>
+              </Reveal>
+              <Reveal delayMs={104} className="mb-10 max-w-[640px] text-[15px] leading-[1.6] text-white/50">
+                A limited, numbered way to back RentYourTime before launch — one payment, no
+                subscription. Each tier is capped and once it sells out, it&rsquo;s gone for good.
+                See the full{" "}
+                <Link href="/founders" className="text-signal no-underline hover:underline">
+                  Founder Program
+                </Link>{" "}
+                for details.
+              </Reveal>
+
+              <Reveal delayMs={136}>
+                <FounderTierCards initialTiers={founderTiers} />
+              </Reveal>
+
+              <Reveal delayMs={172} className="mt-14">
+                <h3 className="mb-6 text-[22px] tracking-[-0.02em]">Compare Founder tiers</h3>
+                <FounderComparisonTable />
+              </Reveal>
+            </section>
+          )}
 
           {/* compare */}
           <section className="border-t border-white/[0.06] px-6 py-[72px] sm:px-12">
