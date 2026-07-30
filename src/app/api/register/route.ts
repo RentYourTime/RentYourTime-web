@@ -4,6 +4,7 @@ import { issueToken, json, jsonError, rateLimit, readJsonBody } from "@/lib/auth
 import { hashPassword, passwordPolicyError } from "@/lib/password";
 import { buildVerificationUrl, createEmailVerificationToken } from "@/lib/email-verification";
 import { sendVerificationEmail } from "@/lib/email";
+import { deprecatedRoute } from "@/lib/http/deprecation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ interface RegisterBody {
   displayName?: unknown;
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const limited = rateLimit(req, "register", 5, 900);
   if (limited) return limited;
 
@@ -82,3 +83,6 @@ export async function POST(req: Request) {
     201
   );
 }
+
+/** Legacy compatibility adapter — see docs/AUTH_MIGRATION.md. Prefer POST /api/v1/auth/register. */
+export const POST = deprecatedRoute("/api/v1/auth/register", handlePost);

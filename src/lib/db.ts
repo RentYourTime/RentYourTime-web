@@ -249,6 +249,174 @@ export function getDb(): Database.Database {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    -- ------------------------------------------------------------------
+    -- /api/v1 central API tables (docs/API_ARCHITECTURE.md). All additive —
+    -- none of the tables above are touched. See docs/DATABASE_MIGRATION.md
+    -- for the eventual Postgres path; these definitions are written to be a
+    -- 1:1 port (explicit columns, no SQLite-only tricks besides INTEGER
+    -- booleans and TEXT timestamps, which the migration script converts).
+    -- ------------------------------------------------------------------
+
+    -- One-to-one with users. Distinct from account security fields (which
+    -- stay on 'users') — this is user-controlled product preferences only.
+    CREATE TABLE IF NOT EXISTS user_profiles (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      locale TEXT NOT NULL DEFAULT 'en-US',
+      timezone TEXT NOT NULL DEFAULT 'UTC',
+      currency TEXT NOT NULL DEFAULT 'usd',
+      daily_free_minutes INTEGER NOT NULL DEFAULT 60,
+      rent_rate_per_hour_minor INTEGER NOT NULL DEFAULT 0,
+      analytics_consent INTEGER NOT NULL DEFAULT 0,
+      marketing_consent INTEGER NOT NULL DEFAULT 0,
+      version INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT NOT NULL
+    );
+
+    -- Devices first (sessions reference them). installation_id is a
+    -- client-generated stable UUID (iOS: identifierForVendor-derived; web:
+    -- a random id persisted in an HttpOnly cookie) — never the Apple
+    -- vendor/advertising identifier itself.
+    CREATE TABLE IF NOT EXISTS devices (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      installation_id TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      device_name TEXT,
+      system_version TEXT,
+      app_version TEXT,
+      push_token TEXT,
+      push_environment TEXT,
+      last_seen_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      revoked_at TEXT
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_user_installation ON devices(user_id, installation_id);
+    CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id);
+
+    -- Refresh-token sessions for /api/v1 (docs/AUTH_FLOW.md). Deliberately
+    -- separate from the legacy 'tokens' table — see docs/AUTH_MIGRATION.md
+    -- for why both exist during the migration window. refresh_token_hash is
+    -- SHA-256 of the raw refresh token, same technique as 'tokens'/
+    -- 'email_verification_tokens'. token_family_id ties together every
+    -- session produced by rotating the same original login, so reuse of a
+    -- superseded refresh token can revoke the whole family.
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      refresh_token_hash TEXT NOT NULL UNIQUE,
+      token_family_id TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      device_id TEXT REFERENCES devices(id) ON DELETE SET NULL,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT NOT NULL,
+      last_used_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      revoked_at TEXT,
+      replaced_by_session_id TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_family_id ON sessions(token_family_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_device_id ON sessions(device_id);
+
+    -- Same technique as email_verification_tokens, for "forgot password".
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
+
+    -- Manual (non-provider) entitlement grants only — ADMIN comps and PROMO
+    -- codes. STRIPE/APPLE/FOUNDER entitlements are derived read-side by
+    -- EntitlementService straight from 'subscriptions'/'founder_purchases';
+    -- this table is never written by a webhook or by client input.
+    CREATE TABLE IF NOT EXISTS entitlements (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      source TEXT NOT NULL,
+      starts_at TEXT NOT NULL,
+      ends_at TEXT,
+      metadata TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revoked_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_entitlements_user_id ON entitlements(user_id);
+
+    -- Aggregated per-device-per-day usage sync (docs/API_ENDPOINTS.md §usage).
+    -- Never stores per-app breakdowns or FamilyControls tokens — totals only.
+    CREATE TABLE IF NOT EXISTS daily_usage (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+      date TEXT NOT NULL,
+      total_seconds INTEGER NOT NULL,
+      free_seconds INTEGER NOT NULL,
+      billable_seconds INTEGER NOT NULL,
+      virtual_rent_amount_minor INTEGER NOT NULL,
+      currency TEXT NOT NULL,
+      goal_met INTEGER NOT NULL DEFAULT 0,
+      version INTEGER NOT NULL DEFAULT 1,
+      client_updated_at TEXT NOT NULL,
+      server_updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_usage_user_device_date ON daily_usage(user_id, device_id, date);
+    CREATE INDEX IF NOT EXISTS idx_daily_usage_user_date ON daily_usage(user_id, date);
+
+    CREATE TABLE IF NOT EXISTS feature_flags (
+      id TEXT PRIMARY KEY,
+      key TEXT NOT NULL UNIQUE,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      free_enabled INTEGER NOT NULL DEFAULT 1,
+      pro_enabled INTEGER NOT NULL DEFAULT 1,
+      founder_enabled INTEGER NOT NULL DEFAULT 1,
+      rollout_percentage INTEGER NOT NULL DEFAULT 100,
+      minimum_app_version TEXT,
+      latest_app_version TEXT,
+      starts_at TEXT,
+      ends_at TEXT,
+      metadata TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    -- One row per (user, Idempotency-Key, endpoint) — a retried request with
+    -- the same key+endpoint+body replays the stored response instead of
+    -- re-executing side effects. See docs/API_ARCHITECTURE.md.
+    CREATE TABLE IF NOT EXISTS idempotency_keys (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      endpoint TEXT NOT NULL,
+      request_hash TEXT NOT NULL,
+      response_status INTEGER,
+      response_body TEXT,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_idempotency_user_key_endpoint ON idempotency_keys(user_id, key, endpoint);
+    CREATE INDEX IF NOT EXISTS idx_idempotency_expires_at ON idempotency_keys(expires_at);
+
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      entity_type TEXT,
+      entity_id TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      metadata TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit_log(user_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
   `);
 
   // Migration: add waitlist.notified to older databases. Existing rows are
@@ -371,6 +539,12 @@ export function getDb(): Database.Database {
   if (Math.floor(Math.random() * 100) === 0) {
     db.prepare("DELETE FROM tokens WHERE expires_at <= ?").run(new Date().toISOString());
     db.prepare("DELETE FROM rate_limits WHERE resets_at <= ?").run(Math.floor(Date.now() / 1000));
+    const nowIso = new Date().toISOString();
+    // Revoked/expired sessions are kept (audit trail, reuse-detection needs
+    // the row) — only the strictly-expired idempotency cache and used/expired
+    // password reset tokens are opportunistically pruned.
+    db.prepare("DELETE FROM idempotency_keys WHERE expires_at <= ?").run(nowIso);
+    db.prepare("DELETE FROM password_reset_tokens WHERE expires_at <= ?").run(nowIso);
   }
 
   return db;

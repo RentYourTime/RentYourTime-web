@@ -1,11 +1,12 @@
 import { currentUser, json, jsonError } from "@/lib/auth";
 import { isProCheckoutEnabled } from "@/lib/stripe";
 import { getSubscriptionForUser, serializeSubscription } from "@/lib/subscriptions";
+import { deprecatedRoute } from "@/lib/http/deprecation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
+async function handleGet(req: Request) {
   const user = currentUser(req);
   if (!user) return jsonError("unauthorized", 401);
 
@@ -25,3 +26,6 @@ export async function GET(req: Request) {
     },
   });
 }
+
+/** Legacy compatibility adapter — see docs/AUTH_MIGRATION.md. Prefer GET /api/v1/auth/me + GET /api/v1/subscription/status. */
+export const GET = deprecatedRoute("/api/v1/auth/me", handleGet);

@@ -11,3 +11,17 @@
 if (!process.env.APP_URL) {
   process.env.APP_URL = "http://localhost:3000";
 }
+
+// Same fallback-only contract as APP_URL above, for the /api/v1 access-token
+// signer (src/server/auth/tokens.ts) — most v1 auth/session tests never care
+// about the exact values, only that a token can be issued/verified. Any test
+// that does care sets its own.
+if (!process.env.ACCESS_TOKEN_SECRET) {
+  process.env.ACCESS_TOKEN_SECRET = "test-access-token-secret";
+}
+if (!process.env.ACCESS_TOKEN_ISSUER) {
+  process.env.ACCESS_TOKEN_ISSUER = "https://api.rentyourtime.test";
+}
+if (!process.env.ACCESS_TOKEN_AUDIENCE) {
+  process.env.ACCESS_TOKEN_AUDIENCE = "rentyourtime-clients-test";
+}

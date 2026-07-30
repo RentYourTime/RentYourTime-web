@@ -1,0 +1,935 @@
+openapi: 3.1.0
+info:
+  title: RentYourTime Central API
+  version: "1.0.0"
+  description: >
+    Central API for web, iOS, watchOS, iOS widgets, and the Discord bot.
+    See docs/API_ARCHITECTURE.md for the response envelope and error model,
+    docs/AUTH_FLOW.md for the token model, and docs/ENTITLEMENTS.md for how
+    Pro/Founder access is computed. This is the contract iOS models its
+    Codable types against (docs/IOS_API_INTEGRATION.md).
+servers:
+  - url: https://dev.rentyourtime.atlashc.pl/api/v1
+    description: Development
+  - url: https://api.rentyourtime.app/api/v1
+    description: Production
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived access token from /auth/login, /auth/register, or /auth/refresh.
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: rt
+      description: >
+        HttpOnly refresh-token cookie used by the web BFF only
+        (docs/WEB_API_INTEGRATION.md). Never used directly by iOS/Watch/bot.
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: { type: string, maxLength: 200 }
+      description: Replays the first response for a repeated identical request. See docs/API_ARCHITECTURE.md.
+
+  schemas:
+    Meta:
+      type: object
+      required: [requestId]
+      properties:
+        requestId: { type: string, example: "req_1a2b3c4d5e6f7a8b9c0d1e2f" }
+
+    ErrorBody:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, example: "VALIDATION_ERROR" }
+        message: { type: string, example: "Nie udało się przetworzyć żądania." }
+        fields:
+          type: object
+          additionalProperties: { type: string }
+          example: { email: "Nieprawidłowy adres e-mail." }
+
+    ErrorResponse:
+      type: object
+      required: [error, meta]
+      properties:
+        error: { $ref: "#/components/schemas/ErrorBody" }
+        meta: { $ref: "#/components/schemas/Meta" }
+
+    AuthUser:
+      type: object
+      required: [id, email, displayName, emailVerified, role]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        displayName: { type: [string, "null"] }
+        emailVerified: { type: boolean }
+        role: { type: string, enum: [USER, ADMIN, ADMIN_TEAMS] }
+
+    Session:
+      type: object
+      required: [accessToken, refreshToken, accessTokenExpiresAt]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        accessTokenExpiresAt: { type: string, format: date-time }
+
+    Platform:
+      type: string
+      enum: [IOS, WEB, WATCHOS, ADMIN_WEB, DISCORD_BOT, INTERNAL]
+
+    Profile:
+      type: object
+      properties:
+        userId: { type: string }
+        displayName: { type: [string, "null"] }
+        locale: { type: string, example: en-US }
+        timezone: { type: string, example: Europe/Warsaw }
+        currency: { type: string, example: usd }
+        dailyFreeMinutes: { type: integer, minimum: 0, maximum: 1440 }
+        rentRatePerHour: { type: number, minimum: 0, maximum: 1000 }
+        analyticsConsent: { type: boolean }
+        marketingConsent: { type: boolean }
+        version: { type: integer, minimum: 1 }
+        updatedAt: { type: string, format: date-time }
+
+    Device:
+      type: object
+      properties:
+        id: { type: string }
+        platform: { $ref: "#/components/schemas/Platform" }
+        deviceName: { type: [string, "null"] }
+        systemVersion: { type: [string, "null"] }
+        appVersion: { type: [string, "null"] }
+        pushEnabled: { type: boolean }
+        lastSeenAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    DailyUsageRecord:
+      type: object
+      required: [date, deviceId, totalSeconds, freeSeconds, billableSeconds, virtualRentAmountMinor, currency, goalMet, version, updatedAt]
+      properties:
+        date: { type: string, format: date, example: "2026-07-30" }
+        deviceId: { type: string }
+        totalSeconds: { type: integer, minimum: 0 }
+        freeSeconds: { type: integer, minimum: 0 }
+        billableSeconds: { type: integer, minimum: 0 }
+        virtualRentAmountMinor: { type: integer, minimum: 0, description: Minor currency units (cents). Informational only — never an automatic charge. }
+        currency: { type: string, example: usd }
+        goalMet: { type: boolean }
+        version: { type: integer, minimum: 1 }
+        updatedAt: { type: string, format: date-time }
+
+    UsageSummary:
+      type: object
+      properties:
+        totalSeconds: { type: integer }
+        freeSeconds: { type: integer }
+        billableSeconds: { type: integer }
+        virtualRentAmountMinor: { type: integer }
+        currency: { type: [string, "null"] }
+        daysTracked: { type: integer }
+        goalsMet: { type: integer }
+
+    EntitlementSource:
+      type: string
+      enum: [APPLE, STRIPE, FOUNDER, ADMIN, PROMO]
+
+    UserAccess:
+      type: object
+      properties:
+        isPro: { type: boolean }
+        isFounder: { type: boolean }
+        earlyAccess: { type: boolean }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/EntitlementSource" }
+        primaryProvider:
+          oneOf:
+            - { $ref: "#/components/schemas/EntitlementSource" }
+            - type: "null"
+        plan: { type: string, enum: [MONTHLY, YEARLY, LIFETIME, UNKNOWN] }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+        expiresAt: { type: [string, "null"], format: date-time }
+        features:
+          type: array
+          items: { type: string }
+
+    Config:
+      type: object
+      properties:
+        maintenance: { type: boolean }
+        minimumAppVersion: { type: [string, "null"] }
+        latestAppVersion: { type: [string, "null"] }
+        features:
+          type: object
+          additionalProperties: { type: boolean }
+        requiresPro:
+          type: array
+          items: { type: string }
+        requiresFounder:
+          type: array
+          items: { type: string }
+        founderEarlyAccess: { type: boolean }
+
+  responses:
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Unauthorized:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Forbidden:
+      description: Authenticated but not permitted
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Conflict:
+      description: Version/uniqueness conflict
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    RateLimited:
+      description: Too many requests
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+paths:
+  /auth/register:
+    post:
+      operationId: authRegister
+      summary: Create an account and log in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 10, maxLength: 200 }
+                displayName: { type: [string, "null"], maxLength: 80 }
+                platform: { $ref: "#/components/schemas/Platform" }
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user: { $ref: "#/components/schemas/AuthUser" }
+                      session: { $ref: "#/components/schemas/Session" }
+                      verificationEmailSent: { type: boolean }
+                  meta: { $ref: "#/components/schemas/Meta" }
+              example:
+                data:
+                  user: { id: "user_abc123", email: "user@example.com", displayName: "User", emailVerified: false, role: USER }
+                  session: { accessToken: "eyJ...", refreshToken: "9f2c...", accessTokenExpiresAt: "2026-07-30T12:15:00Z" }
+                  verificationEmailSent: true
+                meta: { requestId: "req_abc" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /auth/login:
+    post:
+      operationId: authLogin
+      summary: Log in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+                platform: { $ref: "#/components/schemas/Platform" }
+                deviceId: { type: string, description: An already-registered device id owned by this account. }
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user: { $ref: "#/components/schemas/AuthUser" }
+                      session: { $ref: "#/components/schemas/Session" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /auth/refresh:
+    post:
+      operationId: authRefresh
+      summary: Rotate a refresh token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties: { refreshToken: { type: string } }
+      responses:
+        "200":
+          description: Rotated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user: { $ref: "#/components/schemas/AuthUser" }
+                      session: { $ref: "#/components/schemas/Session" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401":
+          description: Invalid, expired, or reused (TOKEN_REUSE_DETECTED — see docs/AUTH_FLOW.md)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+  /auth/logout:
+    post:
+      operationId: authLogout
+      summary: Revoke one session (idempotent)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties: { refreshToken: { type: string } }
+      responses:
+        "200": { description: OK }
+
+  /auth/logout-all:
+    post:
+      operationId: authLogoutAll
+      summary: Revoke every session for the account
+      responses:
+        "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/logout-others:
+    post:
+      operationId: authLogoutOthers
+      summary: Revoke every session except the caller's
+      responses:
+        "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/me:
+    get:
+      operationId: authMe
+      summary: Current account
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties: { user: { $ref: "#/components/schemas/AuthUser" } }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/change-password:
+    post:
+      operationId: authChangePassword
+      summary: Change password (keeps the current session, revokes every other)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword: { type: string, minLength: 10, maxLength: 200 }
+      responses:
+        "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /auth/forgot-password:
+    post:
+      operationId: authForgotPassword
+      summary: Request a password reset email (always returns generic success)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties: { email: { type: string, format: email } }
+      responses:
+        "200": { description: OK (generic — does not reveal whether the email matched an account) }
+
+  /auth/reset-password:
+    post:
+      operationId: authResetPassword
+      summary: Complete a password reset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, newPassword]
+              properties:
+                token: { type: string }
+                newPassword: { type: string, minLength: 10, maxLength: 200 }
+      responses:
+        "200": { description: OK }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /auth/verify-email:
+    post:
+      operationId: authVerifyEmail
+      summary: Confirm an email verification token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties: { token: { type: string } }
+      responses:
+        "200": { description: OK }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /auth/resend-verification:
+    post:
+      operationId: authResendVerification
+      summary: Resend the verification email
+      responses:
+        "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { description: Already verified }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /profile:
+    get:
+      operationId: getProfile
+      summary: Get the user's profile
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties: { profile: { $ref: "#/components/schemas/Profile" } }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    patch:
+      operationId: updateProfile
+      summary: Update the user's profile (optimistic concurrency via version)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                displayName: { type: [string, "null"] }
+                locale: { type: string }
+                timezone: { type: string, description: IANA time zone, example: Europe/Warsaw }
+                currency: { type: string, example: usd }
+                dailyFreeMinutes: { type: integer }
+                rentRatePerHour: { type: number }
+                analyticsConsent: { type: boolean }
+                marketingConsent: { type: boolean }
+                version: { type: integer }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties: { profile: { $ref: "#/components/schemas/Profile" } }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409":
+          description: version conflict — refetch and retry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorResponse" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /devices:
+    get:
+      operationId: listDevices
+      summary: List active devices
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      devices: { type: array, items: { $ref: "#/components/schemas/Device" } }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /devices/register:
+    post:
+      operationId: registerDevice
+      summary: Register or update the current device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [installationId, platform]
+              properties:
+                installationId: { type: string }
+                platform: { $ref: "#/components/schemas/Platform" }
+                deviceName: { type: string }
+                systemVersion: { type: string }
+                appVersion: { type: string }
+                pushToken: { type: string }
+                pushEnvironment: { type: string, enum: [sandbox, production] }
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: object, properties: { device: { $ref: "#/components/schemas/Device" } } }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /devices/current:
+    patch:
+      operationId: updateCurrentDevice
+      summary: Update the device bound to the current session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deviceName: { type: string }
+                systemVersion: { type: string }
+                appVersion: { type: string }
+                pushToken: { type: string }
+                pushEnvironment: { type: string, enum: [sandbox, production] }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: object, properties: { device: { $ref: "#/components/schemas/Device" } } }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /devices/{id}:
+    delete:
+      operationId: deleteDevice
+      summary: Revoke a device and its sessions
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /usage/daily:
+    post:
+      operationId: upsertDailyUsage
+      summary: Upsert one day's usage
+      parameters:
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DailyUsageRecord" }
+      responses:
+        "200":
+          description: Upserted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/DailyUsageRecord" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { description: Stale version }
+        "422": { $ref: "#/components/responses/ValidationError" }
+    get:
+      operationId: listDailyUsage
+      summary: List daily usage records
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: deviceId, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      records: { type: array, items: { $ref: "#/components/schemas/DailyUsageRecord" } }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /usage/daily/batch:
+    post:
+      operationId: upsertDailyUsageBatch
+      summary: Upsert up to 100 days of usage in one request (partial success)
+      parameters:
+        - { $ref: "#/components/parameters/IdempotencyKey" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [records]
+              properties:
+                records:
+                  type: array
+                  maxItems: 100
+                  items: { $ref: "#/components/schemas/DailyUsageRecord" }
+      responses:
+        "200":
+          description: Per-record results (each may individually be ok or not)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      results:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            date: { type: [string, "null"] }
+                            deviceId: { type: [string, "null"] }
+                            ok: { type: boolean }
+                            error: { $ref: "#/components/schemas/ErrorBody" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /usage/summary:
+    get:
+      operationId: getUsageSummary
+      summary: Aggregated totals over a date range (default trailing 30 days)
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: object, properties: { summary: { $ref: "#/components/schemas/UsageSummary" } } }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /usage/trends:
+    get:
+      operationId: getUsageTrends
+      summary: One data point per day over a date range
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      points:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            date: { type: string, format: date }
+                            totalSeconds: { type: integer }
+                            billableSeconds: { type: integer }
+                            virtualRentAmountMinor: { type: integer }
+                            goalMet: { type: boolean }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /subscription/status:
+    get:
+      operationId: getSubscriptionStatus
+      summary: Merged entitlement view (docs/ENTITLEMENTS.md)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/UserAccess" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /subscription/stripe/checkout:
+    post:
+      operationId: createStripeCheckout
+      summary: Create a Stripe Checkout session for Pro
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { plan: { type: string, enum: [monthly, yearly], default: yearly } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties: { checkoutUrl: { type: string }, sessionId: { type: string } }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { description: Checkout disabled or misconfigured }
+
+  /subscription/stripe/portal:
+    post:
+      operationId: createStripePortal
+      summary: Create a Stripe Customer Portal session
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: object, properties: { portalUrl: { type: string } } }
+                  meta: { $ref: "#/components/schemas/Meta" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { description: No Stripe customer on this account yet }
+
+  /subscription/apple/verify:
+    post:
+      operationId: verifyAppleTransaction
+      summary: Verify a StoreKit transaction (structural placeholder — see docs/APPLE_SUBSCRIPTIONS.md)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [signedTransactionInfo]
+              properties:
+                signedTransactionInfo: { type: string }
+                signedRenewalInfo: { type: string }
+      responses:
+        "501": { description: "Not implemented yet — real JWS verification is not wired up" }
+        "503": { description: Apple credentials not configured }
+
+  /subscription/apple/restore:
+    post:
+      operationId: restoreAppleTransaction
+      summary: Restore purchases (same contract as verify)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [signedTransactionInfo]
+              properties: { signedTransactionInfo: { type: string } }
+      responses:
+        "501": { description: Not implemented yet }
+        "503": { description: Apple credentials not configured }
+
+  /account/export:
+    post:
+      operationId: exportAccount
+      summary: Export all account data (GDPR-style export)
+      responses:
+        "200": { description: OK — full export, never includes passwordHash or token hashes }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /account:
+    delete:
+      operationId: deleteAccount
+      summary: Delete (soft-delete + scrub) the account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password, confirm]
+              properties:
+                password: { type: string }
+                confirm: { type: boolean, enum: [true] }
+      responses:
+        "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /push/register:
+    post:
+      operationId: registerPushToken
+      summary: Register a push token for a device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId, pushToken, pushEnvironment]
+              properties:
+                deviceId: { type: string }
+                pushToken: { type: string }
+                pushEnvironment: { type: string, enum: [sandbox, production] }
+      responses:
+        "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /push/current:
+    delete:
+      operationId: clearCurrentPushToken
+      summary: Clear the push token for the session's current device
+      responses:
+        "200": { description: OK }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /config:
+    get:
+      operationId: getConfig
+      summary: Feature flags / remote config / maintenance / force-upgrade
+      security: []
+      parameters:
+        - { name: appVersion, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: OK (Bearer token optional — personalizes the response if present)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Config" }
+                  meta: { $ref: "#/components/schemas/Meta" }
+
+  /webhooks/stripe:
+    post:
+      operationId: stripeWebhook
+      summary: Stripe webhook receiver (re-export of the legacy /api/webhook — see docs/API_ARCHITECTURE.md)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: Processed (or already-seen — idempotent) }
+        "400": { description: Invalid signature }
+
+  /webhooks/apple:
+    post:
+      operationId: appleWebhook
+      summary: App Store Server Notifications V2 (structural placeholder — always 501 today)
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "501": { description: Not implemented yet }

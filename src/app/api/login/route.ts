@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import { issueToken, json, jsonError, rateLimit, readJsonBody, type UserRow } from "@/lib/auth";
 import { hashPassword, needsRehash, verifyPassword } from "@/lib/password";
+import { deprecatedRoute } from "@/lib/http/deprecation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ interface LoginBody {
   password?: unknown;
 }
 
-export async function POST(req: Request) {
+async function handlePost(req: Request) {
   const limited = rateLimit(req, "login", 10, 900);
   if (limited) return limited;
 
@@ -53,3 +54,6 @@ export async function POST(req: Request) {
     expires_at,
   });
 }
+
+/** Legacy compatibility adapter — see docs/AUTH_MIGRATION.md. Prefer POST /api/v1/auth/login. */
+export const POST = deprecatedRoute("/api/v1/auth/login", handlePost);

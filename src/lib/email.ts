@@ -1,5 +1,6 @@
 import { SendEmailCommand, SESv2Client } from "@aws-sdk/client-sesv2";
 import { renderVerificationEmail } from "@/emails/verification-email";
+import { renderPasswordResetEmail } from "@/emails/password-reset-email";
 import { renderWaitlistConfirmationEmail } from "@/emails/waitlist-confirmation-email";
 import {
   renderWaitlistOwnerNotificationEmail,
@@ -66,6 +67,18 @@ export async function sendVerificationEmail(params: SendVerificationEmailParams)
     verificationUrl: params.verificationUrl,
     displayName: params.displayName,
   });
+  await sendRenderedEmail(params.email, rendered);
+}
+
+export interface SendPasswordResetEmailParams {
+  email: string;
+  displayName?: string | null;
+  resetUrl: string;
+}
+
+/** Throws on failure — callers (POST /api/v1/auth/forgot-password) must still return a generic success response either way, to avoid leaking account existence. */
+export async function sendPasswordResetEmail(params: SendPasswordResetEmailParams): Promise<void> {
+  const rendered = renderPasswordResetEmail({ resetUrl: params.resetUrl, displayName: params.displayName });
   await sendRenderedEmail(params.email, rendered);
 }
 
